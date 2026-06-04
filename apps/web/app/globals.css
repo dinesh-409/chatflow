@@ -1,0 +1,44 @@
+/* =====================
+   TAILWIND CORE
+===================== */
+@import "tailwindcss";
+
+/* =====================
+   THEME VARIABLES
+===================== */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+/* =====================
+   BASE STYLES
+===================== */
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* =====================
+   CHAT CURSOR
+===================== */
+.cursor {
+  display: inline-block;
+  width: 8px;
+  margin-left: 2px;
+  background: #000;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
