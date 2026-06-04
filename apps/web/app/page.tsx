@@ -8,19 +8,18 @@ type ChatMessage = {
   text: string;
 };
 
-export default function Home() {
+export default function Page() {
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState("auto");
+  const [mode] = useState("auto");
   const [activeSession, setActiveSession] = useState<string>("");
 
   const chatRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-
   const sessionIdRef = useRef<string>("");
 
-  // ✅ SAFE INIT (NO setState in render)
+  // INIT SESSION
   useEffect(() => {
     if (!sessionIdRef.current) {
       sessionIdRef.current = crypto.randomUUID();
@@ -28,30 +27,26 @@ export default function Home() {
     }
   }, []);
 
-  const sessionId = sessionIdRef.current;
-
-  // 📚 LOAD CHAT HISTORY
+  // LOAD HISTORY
   useEffect(() => {
     if (!activeSession) return;
 
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${activeSession}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data?.messages) {
-          setChat(
-            data.messages.map((m: any) => ({
-              role: m.role,
-              text: m.text,
-            }))
-          );
-        } else {
-          setChat([]);
-        }
+        setChat(
+          (data?.messages || []).map((m: any) => ({
+            role: m.role,
+            text: m.text,
+          }))
+        );
       })
-      .catch((err) => console.error("History load failed:", err));
+      .catch(() => {
+        setChat([]);
+      });
   }, [activeSession]);
 
-  // ⚡ AUTO SCROLL
+  // AUTO SCROLL
   useEffect(() => {
     chatRef.current?.scrollTo({
       top: chatRef.current.scrollHeight,
@@ -73,29 +68,31 @@ export default function Home() {
     setChat((p) => [...p, { role: "user", text: msg }]);
     setChat((p) => [...p, { role: "ai", text: "" }]);
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/chat-stream`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({
-          message: msg,
-          sessionId: activeSession,
-          mode,
-        }),
-      }
-    );
-
-    const reader = res.body?.getReader();
-    const decoder = new TextDecoder();
-
-    let aiText = "";
-    let buffer = "";
-
     try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/chat-stream`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            message: msg,
+            sessionId: sessionIdRef.current,
+            mode,
+          }),
+        }
+      );
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+
+      let aiText = "";
+      let buffer = "";
+
+      if (!reader) return;
+
       while (true) {
-        const { value, done } = await reader!.read();
+        const { value, done } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
@@ -119,7 +116,7 @@ export default function Home() {
         }
       }
     } catch (err) {
-      console.log("Stream stopped");
+      console.log("Stream stopped or error");
     } finally {
       setLoading(false);
     }
@@ -127,7 +124,6 @@ export default function Home() {
 
   const sendMessage = async () => {
     if (!message.trim()) return;
-
     const msg = message;
     setMessage("");
     await streamMessage(msg);
@@ -145,7 +141,7 @@ export default function Home() {
         }}
       />
 
-      {/* MAIN CHAT */}
+      {/* CHAT AREA */}
       <div className="flex flex-col flex-1 p-4">
 
         <h1 className="text-xl font-bold text-center mb-2">
