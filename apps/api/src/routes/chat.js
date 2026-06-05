@@ -82,7 +82,6 @@ DYNAMIC CLASSIFICATION RULE: Before responding, internally classify the user's i
 
 SYSTEM DIRECTIVE: All requests involving files must be preprocessed into structured text before sending to any AI model. If AI provider fails, automatically fallback to next model and retry once before showing error. AI provider errors must never be exposed directly to users. System must always attempt failover routing, prompt simplification, or safe mode summarization before showing failure.
 DEPLOYMENT SAFETY RULE: All file processing libraries (pdf-parse, docx parser, xlsx parser) must be explicitly listed in the backend package.json and installed before deployment. No file processing module should be imported unless it is verified in production dependencies and installed during build phase.
-CONVERSATIONAL PRECISION RULE: Answer ONLY what the user explicitly asks. Do NOT append unnecessary details, do NOT summarize past conversations, and do NOT talk about previous topics unless the user directly requests it. If the user asks a simple question (like "What is my name?" or "Hi"), provide a direct, concise answer without any conversational padding, transition, or references to past context.
 
 Global User Context (From past sessions):
 ${globalContext}
