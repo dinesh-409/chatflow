@@ -59,10 +59,9 @@ Assistant:
 
             fullResponse += text;
 
+            // IMPORTANT FIX
             res.write(
-                `data: ${JSON.stringify({
-                    text,
-                })}\n\n`
+                `data: ${JSON.stringify({ text })}\n\n`
             );
         }
 
@@ -88,7 +87,7 @@ Assistant:
 
         res.write(
             `data: ${JSON.stringify({
-                error: err.message,
+                text: `Error: ${err.message}`,
             })}\n\n`
         );
 

@@ -16,13 +16,14 @@ const app = express();
 
 const allowedOrigins = [
    "http://localhost:3000",
+   "https://chatflow-taupe.vercel.app",
+   "https://chatflow-mg55x5s90-dinesh-s-projects20.vercel.app",
    process.env.FRONTEND_URL,
 ].filter(Boolean);
 
 app.use(
    cors({
       origin: (origin, callback) => {
-         // Allow Postman, Render health checks, server-to-server calls
          if (!origin) {
             return callback(null, true);
          }
