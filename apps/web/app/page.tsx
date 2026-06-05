@@ -14,38 +14,40 @@ export default function Page() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("auto");
-  const [activeSession, setActiveSession] = useState<string>("");
+  const [activeSession, setActiveSession] = useState("");
 
   const chatRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const sessionIdRef = useRef<string>("");
+  const sessionIdRef = useRef("");
 
-  // INIT SESSION
   useEffect(() => {
     if (!sessionIdRef.current) {
-      sessionIdRef.current = crypto.randomUUID();
-      setActiveSession(sessionIdRef.current);
+      const id = crypto.randomUUID();
+      sessionIdRef.current = id;
+      setActiveSession(id);
     }
   }, []);
 
-  // LOAD HISTORY
   useEffect(() => {
     if (!activeSession) return;
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${activeSession}`)
+    fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${activeSession}`
+    )
       .then((res) => res.json())
       .then((data) => {
         setChat(
-          (data?.messages || []).map((m: any) => ({
-            role: m.role,
-            text: m.text,
-          }))
+          (data?.messages || []).map(
+            (m: { role: "user" | "ai"; text: string }) => ({
+              role: m.role,
+              text: m.text,
+            })
+          )
         );
       })
       .catch(() => setChat([]));
   }, [activeSession]);
 
-  // SCROLL
   useEffect(() => {
     chatRef.current?.scrollTo({
       top: chatRef.current.scrollHeight,
@@ -64,15 +66,20 @@ export default function Page() {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    setChat((p) => [...p, { role: "user", text: msg }]);
-    setChat((p) => [...p, { role: "ai", text: "..." }]);
+    setChat((prev) => [
+      ...prev,
+      { role: "user", text: msg },
+      { role: "ai", text: "" },
+    ]);
 
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/chat-stream`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           signal: controller.signal,
           body: JSON.stringify({
             message: msg,
@@ -82,40 +89,63 @@ export default function Page() {
         }
       );
 
-      const reader = res.body?.getReader();
+      if (!res.body) {
+        setLoading(false);
+        return;
+      }
+
+      const reader = res.body.getReader();
       const decoder = new TextDecoder();
 
       let buffer = "";
       let aiText = "";
 
-      if (!reader) return;
-
       while (true) {
-        const { value, done } = await reader.read();
+        const { done, value } = await reader.read();
+
         if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
+        buffer += decoder.decode(value, {
+          stream: true,
+        });
 
         const lines = buffer.split("\n");
+
         buffer = lines.pop() || "";
 
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
 
-          const text = line.replace("data: ", "").trim();
-          if (text === "[DONE]") continue;
+          const raw = line.replace("data: ", "").trim();
 
-          aiText += text;
+          if (raw === "[DONE]") continue;
 
-          setChat((p) => {
-            const copy = [...p];
-            copy[copy.length - 1].text = aiText;
-            return copy;
-          });
+          try {
+            const parsed = JSON.parse(raw);
+
+            if (parsed.text) {
+              aiText += parsed.text;
+
+              setChat((prev) => {
+                const updated = [...prev];
+
+                if (updated.length > 0) {
+                  updated[updated.length - 1] = {
+                    role: "ai",
+                    text: aiText,
+                  };
+                }
+
+                return updated;
+              });
+            }
+          } catch (err) {
+            console.error("Stream Parse Error:", err);
+          }
         }
       }
     } catch (err) {
-      console.log("Stream error");
+      console.error("Stream Error:", err);
     } finally {
       setLoading(false);
     }
@@ -123,15 +153,16 @@ export default function Page() {
 
   const sendMessage = async () => {
     if (!message.trim()) return;
+
     const msg = message;
+
     setMessage("");
+
     await streamMessage(msg);
   };
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-black via-gray-900 to-black text-white">
-
-      {/* SIDEBAR */}
       <ChatSidebar
         activeSession={activeSession}
         onSelect={(id: string) => {
@@ -140,25 +171,28 @@ export default function Page() {
         }}
       />
 
-      {/* MAIN */}
       <div className="flex flex-col flex-1">
+        <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+          <h1 className="text-xl font-bold">
+            🚀 ChatFlow AI
+          </h1>
 
-        {/* TOP BAR */}
-        <div className="p-3 border-b border-gray-800 flex justify-between items-center">
-          <h1 className="text-lg font-bold">🔥 ChatFlow AI</h1>
-
-          <ModeSelector mode={mode} setMode={setMode} />
+          <ModeSelector
+            mode={mode}
+            setMode={setMode}
+          />
         </div>
 
-        {/* CHAT AREA */}
-        <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-
+        <div
+          ref={chatRef}
+          className="flex-1 overflow-y-auto p-4 space-y-4"
+        >
           {chat.map((c, i) => (
             <div
               key={i}
-              className={`max-w-[75%] p-3 rounded-xl text-sm ${c.role === "user"
+              className={`max-w-[80%] p-4 rounded-2xl ${c.role === "user"
                   ? "ml-auto bg-green-500 text-black"
-                  : "bg-gray-800"
+                  : "bg-gray-800 text-white"
                 }`}
             >
               {c.text}
@@ -166,30 +200,35 @@ export default function Page() {
           ))}
 
           {loading && (
-            <div className="text-gray-400 text-sm">AI is thinking...</div>
+            <div className="text-gray-400">
+              AI is thinking...
+            </div>
           )}
         </div>
 
-        {/* INPUT */}
-        <div className="p-3 border-t border-gray-800 flex gap-2">
+        <div className="p-4 border-t border-gray-800 flex gap-2">
           <input
-            className="flex-1 p-3 rounded-lg bg-gray-900 border border-gray-700"
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            onChange={(e) =>
+              setMessage(e.target.value)
+            }
+            onKeyDown={(e) =>
+              e.key === "Enter" && sendMessage()
+            }
             placeholder="Message ChatFlow AI..."
+            className="flex-1 p-3 rounded-xl bg-gray-900 border border-gray-700"
           />
 
           <button
             onClick={sendMessage}
-            className="bg-green-500 px-4 rounded-lg text-black font-semibold"
+            className="bg-green-500 px-5 rounded-xl text-black font-semibold"
           >
             Send
           </button>
 
           <button
             onClick={stop}
-            className="bg-red-500 px-4 rounded-lg text-white"
+            className="bg-red-500 px-5 rounded-xl"
           >
             Stop
           </button>
