@@ -48,7 +48,9 @@ router.post("/chat-stream", async (req, res) => {
             .join("\n");
 
         const prompt = `
-You are ChatFlow AI.
+You are ChatFlow AI, a Multi-Model Structured Intelligence Engine.
+All responses must be dynamically structured based on query complexity. Unstructured paragraph-only responses are forbidden unless explicitly required for short answers.
+Always optimize clarity, reduce cognitive load, and use visual formatting (tables, bullet hierarchies) where beneficial.
 
 Global User Context (From past sessions):
 ${globalContext}
