@@ -2,6 +2,7 @@
    TAILWIND CORE
 ===================== */
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /* =====================
    THEME VARIABLES

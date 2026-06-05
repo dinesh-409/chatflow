@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import ChatSidebar from "../components/ChatSidebar";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type ChatMessage = {
   role: "user" | "ai";
@@ -302,10 +304,16 @@ export default function Page() {
                 <div
                   className={`max-w-[80%] p-4 rounded-2xl ${c.role === "user"
                       ? "ml-auto bg-[#383838] text-white"
-                      : "bg-transparent text-gray-100"
+                      : "bg-transparent text-gray-100 prose prose-invert max-w-none"
                     }`}
                 >
-                  {c.text}
+                  {c.role === "ai" ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {c.text}
+                      </ReactMarkdown>
+                  ) : (
+                      c.text
+                  )}
                 </div>
                 {c.role === "ai" && activeModel && i === chat.length - 1 && (
                   <div className="text-xs text-gray-500 mt-2 ml-2 flex items-center gap-1.5 font-medium">
