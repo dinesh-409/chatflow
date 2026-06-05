@@ -1,14 +1,11 @@
 import Session from "../models/Session.js";
 
 export const createSession = async (sessionId) => {
-    const exists = await Session.findOne({ sessionId });
-
-    if (!exists) {
-        return await Session.create({
-            sessionId,
-            title: "New Chat",
-        });
-    }
+    const exists = await Session.findOneAndUpdate(
+        { sessionId },
+        { $setOnInsert: { sessionId, title: "New Chat" } },
+        { new: true, upsert: true }
+    );
 
     return exists;
 };

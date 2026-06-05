@@ -145,7 +145,17 @@ export default function Page() {
           if (raw === "[DONE]")
             continue;
 
-          aiText += raw;
+          let parsedText = raw;
+          try {
+             const parsed = JSON.parse(raw);
+             if (parsed.text) {
+                 parsedText = parsed.text;
+             }
+          } catch (e) {
+             // Fallback to raw
+          }
+
+          aiText += parsedText;
 
           setChat((prev) => {
             const updated = [...prev];
@@ -175,10 +185,15 @@ export default function Page() {
     if (!message.trim()) return;
 
     const msg = message;
+    const isFirstMessage = chat.length === 0;
 
     setMessage("");
 
     await streamMessage(msg);
+    
+    if (isFirstMessage) {
+        window.dispatchEvent(new CustomEvent("chat-created"));
+    }
   };
 
   return (

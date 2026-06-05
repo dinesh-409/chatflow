@@ -1,5 +1,6 @@
 import express from "express";
 import { aiRouterStream } from "../services/routerStream.js";
+import { chooseModel } from "../services/modelRouter.js";
 import { addMessage, getMemory } from "../services/memoryService.js";
 import { createSession } from "../services/sessionService.js";
 
@@ -19,7 +20,22 @@ router.post("/chat-stream", async (req, res) => {
     res.setHeader("Connection", "keep-alive");
 
     try {
-        await createSession(sessionId);
+        const session = await createSession(sessionId);
+        
+        if (session && session.title === "New Chat") {
+            (async () => {
+                try {
+                    const titlePrompt = `Summarize this text in 2 or 3 words max for a chat title. Do not use quotes or periods. Text: "${message}"`;
+                    const stream = await aiRouterStream({ message: titlePrompt, mode: "groq" });
+                    let generatedTitle = "";
+                    for await (const chunk of stream) generatedTitle += chunk.toString();
+                    session.title = generatedTitle.replace(/["']/g, "").trim();
+                    await session.save();
+                } catch (e) {
+                    // ignore title generation errors
+                }
+            })();
+        }
 
         const memory = await getMemory(sessionId);
 
@@ -40,9 +56,11 @@ ${message}
 Assistant:
 `;
 
+        const selectedMode = chooseModel(message, mode);
+
         const stream = await aiRouterStream({
             message: prompt,
-            mode,
+            mode: selectedMode,
         });
 
         let fullResponse = "";
@@ -65,19 +83,21 @@ Assistant:
             );
         }
 
-        if (!aborted) {
-            await addMessage(
-                sessionId,
-                "user",
-                message
-            );
+        await addMessage(
+            sessionId,
+            "user",
+            message
+        );
 
+        if (fullResponse) {
             await addMessage(
                 sessionId,
                 "ai",
                 fullResponse
             );
+        }
 
+        if (!aborted) {
             res.write("data: [DONE]\n\n");
         }
 

@@ -29,16 +29,15 @@ export default function ChatSidebar({
 
     useEffect(() => {
         loadSessions();
+        const handleChatCreated = () => loadSessions();
+        window.addEventListener("chat-created", handleChatCreated);
+        return () => window.removeEventListener("chat-created", handleChatCreated);
     }, []);
 
     const createNewChat = () => {
         const id = crypto.randomUUID();
 
         onSelect(id);
-
-        window.dispatchEvent(
-            new CustomEvent("chat-created")
-        );
     };
 
     return (
