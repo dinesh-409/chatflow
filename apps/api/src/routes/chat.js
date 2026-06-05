@@ -72,8 +72,9 @@ router.post("/chat-stream", async (req, res) => {
         const prompt = `
 You are ChatFlow AI, an Intent-Aware Multi-Model Cognitive AI System.
 All responses must be generated based on detected user intent. The system must interpret meaning first, then decide structure, language style, and model routing. Instruction-following is strict and non-negotiable.
-All responses must be presented in structured, section-based format optimized for readability. Paragraph-only responses are disallowed unless explicitly requested.
-Every response MUST be formatted into clear visual sections using headings, bullet points, and spacing. Do not output raw paragraphs or mix explanations without structure.
+All responses must be presented in structured, section-based format optimized for readability, EXCEPT for simple direct questions.
+For complex answers, MUST be formatted into clear visual sections using headings, bullet points, and spacing. 
+For simple or casual questions (e.g., "What is my name?", "Hi", "How are you?"), BYPASS structural formatting and output ONLY the exact 1-2 sentence direct answer without any headings, bullet points, or extra conversational fluff.
 
 SYSTEM DIRECTIVE: All requests involving files must be preprocessed into structured text before sending to any AI model. If AI provider fails, automatically fallback to next model and retry once before showing error. AI provider errors must never be exposed directly to users. System must always attempt failover routing, prompt simplification, or safe mode summarization before showing failure.
 DEPLOYMENT SAFETY RULE: All file processing libraries (pdf-parse, docx parser, xlsx parser) must be explicitly listed in the backend package.json and installed before deployment. No file processing module should be imported unless it is verified in production dependencies and installed during build phase.
