@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import ChatSidebar from "../components/ChatSidebar";
-import ModeSelector from "../components/ModeSelector";
 
 type ChatMessage = {
   role: "user" | "ai";
@@ -22,7 +21,7 @@ export default function Page() {
 
   useEffect(() => {
     const savedSession =
-      localStorage.getItem("chatflow_session");
+      sessionStorage.getItem("chatflow_session");
 
     if (savedSession) {
       sessionIdRef.current = savedSession;
@@ -33,7 +32,7 @@ export default function Page() {
       sessionIdRef.current = id;
       setActiveSession(id);
 
-      localStorage.setItem(
+      sessionStorage.setItem(
         "chatflow_session",
         id
       );
@@ -203,7 +202,7 @@ export default function Page() {
         onSelect={(id: string) => {
           sessionIdRef.current = id;
 
-          localStorage.setItem(
+          sessionStorage.setItem(
             "chatflow_session",
             id
           );
@@ -218,11 +217,6 @@ export default function Page() {
           <h1 className="text-xl font-bold">
             🚀 ChatFlow AI
           </h1>
-
-          <ModeSelector
-            mode={mode}
-            setMode={setMode}
-          />
         </div>
 
         <div
@@ -248,35 +242,57 @@ export default function Page() {
           )}
         </div>
 
-        <div className="p-4 border-t border-gray-800 flex gap-2">
-          <input
-            value={message}
-            onChange={(e) =>
-              setMessage(
-                e.target.value
-              )
-            }
-            onKeyDown={(e) =>
-              e.key === "Enter" &&
-              sendMessage()
-            }
-            placeholder="Message ChatFlow AI..."
-            className="flex-1 p-3 rounded-xl bg-gray-900 border border-gray-700"
-          />
+        <div className="p-4 mx-auto w-full max-w-4xl">
+          <div className="bg-[#1e1f20] rounded-3xl p-3 flex flex-col gap-2 border border-gray-800">
+            
+            <div className="flex items-center gap-2 px-2">
+               <button className="p-1.5 rounded-full hover:bg-gray-700 text-gray-400">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+               </button>
+               
+               <select 
+                  value={mode}
+                  onChange={(e) => setMode(e.target.value)}
+                  className="appearance-none bg-transparent text-gray-300 font-medium text-sm focus:outline-none cursor-pointer hover:bg-gray-700 px-3 py-1.5 rounded-full"
+               >
+                  <option value="auto" className="bg-gray-800 text-white">Auto (Smart)</option>
+                  <option value="gemini" className="bg-gray-800 text-white">Gemini 3.1 Pro (High)</option>
+                  <option value="groq" className="bg-gray-800 text-white">Groq Llama 3.1 (Fast)</option>
+                  <option value="openrouter" className="bg-gray-800 text-white">OpenRouter GPT-4o</option>
+               </select>
+            </div>
 
-          <button
-            onClick={sendMessage}
-            className="bg-green-500 px-5 rounded-xl text-black font-semibold"
-          >
-            Send
-          </button>
+            <div className="flex items-center gap-2">
+              <input
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                placeholder="Ask anything, @ to mention, / for actions"
+                className="flex-1 bg-transparent text-white px-4 py-3 focus:outline-none text-[15px] placeholder-gray-500"
+              />
+              
+              <button className="p-2 rounded-full hover:bg-gray-700 text-gray-400">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+              </button>
 
-          <button
-            onClick={stop}
-            className="bg-red-500 px-5 rounded-xl"
-          >
-            Stop
-          </button>
+              {loading ? (
+                <button
+                  onClick={stop}
+                  className="bg-gray-700 p-2.5 rounded-full text-white hover:bg-gray-600 transition-colors flex items-center justify-center mr-1"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"></rect></svg>
+                </button>
+              ) : (
+                <button
+                  onClick={sendMessage}
+                  className={`p-2.5 rounded-full transition-colors flex items-center justify-center mr-1 ${message.trim() ? "bg-blue-600 text-white hover:bg-blue-500" : "bg-gray-800 text-gray-600"}`}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </button>
+              )}
+            </div>
+
+          </div>
         </div>
       </div>
     </div>
