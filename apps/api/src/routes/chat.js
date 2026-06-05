@@ -3,6 +3,7 @@ import { aiRouterStream } from "../services/routerStream.js";
 import { chooseModel } from "../services/modelRouter.js";
 import { addMessage, getMemory, getGlobalMemory } from "../services/memoryService.js";
 import { createSession } from "../services/sessionService.js";
+import { parseFileLocal } from "../services/fileParser.js";
 
 const router = express.Router();
 
@@ -20,12 +21,33 @@ router.post("/chat-stream", async (req, res) => {
     res.setHeader("Connection", "keep-alive");
 
     try {
+        let modifiedMessage = message;
+        
+        // 📁 FILE PARSING PIPELINE
+        const fileRegex = /\[Attached Files:\s*(.+?)\]/g;
+        let match;
+        while ((match = fileRegex.exec(message)) !== null) {
+            const urls = match[1].split(", ");
+            for (const url of urls) {
+                if (url.includes("/uploads/")) {
+                    console.log(`[FILE PIPELINE] Parsing locally: ${url}`);
+                    const fileText = await parseFileLocal(url);
+                    if (fileText) {
+                        const chunkedText = fileText.substring(0, 15000); // Safe chunk limit
+                        modifiedMessage += `\n\n--- EXTRACTED FILE CONTENT ---\n${chunkedText}\n--- END FILE CONTENT ---\n`;
+                    }
+                }
+            }
+            // Strip the raw URLs so we don't send localhost links to the provider
+            modifiedMessage = modifiedMessage.replace(match[0], "[Files Processed Locally]");
+        }
+
         const session = await createSession(sessionId);
         
         if (session && session.title === "New Chat") {
             (async () => {
                 try {
-                    const titlePrompt = `Summarize this text in 2 or 3 words max for a chat title. Do not use quotes or periods. Text: "${message}"`;
+                    const titlePrompt = `Summarize this text in 2 or 3 words max for a chat title. Do not use quotes or periods. Text: "${modifiedMessage}"`;
                     const stream = await aiRouterStream({ message: titlePrompt, mode: "groq" });
                     let generatedTitle = "";
                     for await (const chunk of stream) generatedTitle += chunk.toString();
@@ -53,6 +75,8 @@ All responses must be generated based on detected user intent. The system must i
 All responses must be presented in structured, section-based format optimized for readability. Paragraph-only responses are disallowed unless explicitly requested.
 Every response MUST be formatted into clear visual sections using headings, bullet points, and spacing. Do not output raw paragraphs or mix explanations without structure.
 
+SYSTEM DIRECTIVE: All requests involving files must be preprocessed into structured text before sending to any AI model. If AI provider fails, automatically fallback to next model and retry once before showing error. AI provider errors must never be exposed directly to users. System must always attempt failover routing, prompt simplification, or safe mode summarization before showing failure.
+
 Global User Context (From past sessions):
 ${globalContext}
 
@@ -60,7 +84,7 @@ Previous Conversation (Current Session):
 ${context}
 
 User:
-${message}
+${modifiedMessage}
 
 Assistant:
 `;

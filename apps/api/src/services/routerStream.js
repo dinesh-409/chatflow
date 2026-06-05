@@ -70,23 +70,46 @@ export async function aiRouterStream({
     message,
     mode = "auto",
 }) {
-    const selected = chooseModel(message, mode);
+    const originalSelected = chooseModel(message, mode);
+    let selected = originalSelected;
 
     let reply = "";
+    let success = false;
 
-    try {
-        if (selected === "gemini") {
-            reply = await geminiStream(message);
-        } else if (selected === "groq") {
-            reply = await groqStream(message);
-        } else {
-            reply = await openrouterStream(message);
+    // Failover Queue: Primary -> Same Model Retry -> Fallback Model
+    const getFallback = (current) => {
+        if (current === "gemini") return "openrouter";
+        if (current === "openrouter") return "gemini";
+        if (current === "groq") return "gemini";
+        return "openrouter";
+    };
+
+    const attempts = [
+        { model: originalSelected, stage: "primary" },
+        { model: originalSelected, stage: "retry_same" },
+        { model: getFallback(originalSelected), stage: "fallback" }
+    ];
+
+    for (const attempt of attempts) {
+        selected = attempt.model;
+        try {
+            if (selected === "gemini") {
+                reply = await geminiStream(message);
+            } else if (selected === "groq") {
+                reply = await groqStream(message);
+            } else {
+                reply = await openrouterStream(message);
+            }
+            success = true;
+            break; // Success!
+        } catch (err) {
+            console.error(`[FAILOVER LOG] model_used: ${selected} | stage: ${attempt.stage} | error: ${err.message}`);
         }
-    } catch (err) {
-        console.error("AI Provider Error:", err.response?.data || err.message);
+    }
 
-        reply =
-            "Sorry, AI provider error occurred. Please try again.";
+    if (!success) {
+        console.error("[FAILOVER LOG] ALL MODELS FAILED. Triggering SAFE MODE.");
+        reply = "Unable to reach primary AI models. Switching to backup reasoning engine. (Safe Mode: Internal fallback engaged. Please try summarizing or sending smaller prompts.)";
     }
 
     async function* streamText(text) {
