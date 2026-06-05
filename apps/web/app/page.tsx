@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import ChatSidebar from "../components/ChatSidebar";
+import ModeSelector from "../components/ModeSelector";
 
 type ChatMessage = {
   role: "user" | "ai";
@@ -12,7 +13,7 @@ export default function Page() {
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [mode] = useState("auto");
+  const [mode, setMode] = useState("auto");
   const [activeSession, setActiveSession] = useState<string>("");
 
   const chatRef = useRef<HTMLDivElement>(null);
@@ -41,12 +42,10 @@ export default function Page() {
           }))
         );
       })
-      .catch(() => {
-        setChat([]);
-      });
+      .catch(() => setChat([]));
   }, [activeSession]);
 
-  // AUTO SCROLL
+  // SCROLL
   useEffect(() => {
     chatRef.current?.scrollTo({
       top: chatRef.current.scrollHeight,
@@ -66,7 +65,7 @@ export default function Page() {
     abortRef.current = controller;
 
     setChat((p) => [...p, { role: "user", text: msg }]);
-    setChat((p) => [...p, { role: "ai", text: "" }]);
+    setChat((p) => [...p, { role: "ai", text: "..." }]);
 
     try {
       const res = await fetch(
@@ -86,8 +85,8 @@ export default function Page() {
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
 
-      let aiText = "";
       let buffer = "";
+      let aiText = "";
 
       if (!reader) return;
 
@@ -116,7 +115,7 @@ export default function Page() {
         }
       }
     } catch (err) {
-      console.log("Stream stopped or error");
+      console.log("Stream error");
     } finally {
       setLoading(false);
     }
@@ -130,7 +129,7 @@ export default function Page() {
   };
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-gradient-to-br from-black via-gray-900 to-black text-white">
 
       {/* SIDEBAR */}
       <ChatSidebar
@@ -141,50 +140,56 @@ export default function Page() {
         }}
       />
 
-      {/* CHAT AREA */}
-      <div className="flex flex-col flex-1 p-4">
+      {/* MAIN */}
+      <div className="flex flex-col flex-1">
 
-        <h1 className="text-xl font-bold text-center mb-2">
-          🔥 ChatFlow AI
-        </h1>
+        {/* TOP BAR */}
+        <div className="p-3 border-b border-gray-800 flex justify-between items-center">
+          <h1 className="text-lg font-bold">🔥 ChatFlow AI</h1>
 
-        <div
-          ref={chatRef}
-          className="flex-1 overflow-y-auto border p-3 bg-gray-50"
-        >
+          <ModeSelector mode={mode} setMode={setMode} />
+        </div>
+
+        {/* CHAT AREA */}
+        <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+
           {chat.map((c, i) => (
             <div
               key={i}
-              className={`mb-2 p-2 rounded ${c.role === "user"
-                  ? "bg-green-100 ml-auto w-fit"
-                  : "bg-gray-200"
+              className={`max-w-[75%] p-3 rounded-xl text-sm ${c.role === "user"
+                  ? "ml-auto bg-green-500 text-black"
+                  : "bg-gray-800"
                 }`}
             >
-              <b>{c.role === "user" ? "You" : "AI"}:</b> {c.text}
+              {c.text}
             </div>
           ))}
+
+          {loading && (
+            <div className="text-gray-400 text-sm">AI is thinking...</div>
+          )}
         </div>
 
         {/* INPUT */}
-        <div className="flex gap-2 mt-2">
+        <div className="p-3 border-t border-gray-800 flex gap-2">
           <input
-            className="border p-2 flex-1 rounded"
+            className="flex-1 p-3 rounded-lg bg-gray-900 border border-gray-700"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            placeholder="Type message..."
+            placeholder="Message ChatFlow AI..."
           />
 
           <button
-            className="bg-green-500 text-white px-4 py-2 rounded"
             onClick={sendMessage}
+            className="bg-green-500 px-4 rounded-lg text-black font-semibold"
           >
-            Send 🚀
+            Send
           </button>
 
           <button
-            className="bg-red-500 text-white px-4 py-2 rounded"
             onClick={stop}
+            className="bg-red-500 px-4 rounded-lg text-white"
           >
             Stop
           </button>

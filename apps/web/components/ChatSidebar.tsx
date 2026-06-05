@@ -2,38 +2,46 @@
 
 import { useEffect, useState } from "react";
 
-export default function ChatSidebar({ onSelect, activeSession }: any) {
-    const [sessions, setSessions] = useState([]);
+type Props = {
+    activeSession: string;
+    onSelect: (id: string) => void;
+};
+
+export default function ChatSidebar({ activeSession, onSelect }: Props) {
+    const [sessions, setSessions] = useState<any[]>([]);
 
     useEffect(() => {
         fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sessions`)
             .then((res) => res.json())
-            .then(setSessions)
-            .catch((err) => console.error("Sidebar load error:", err));
+            .then((data) => setSessions(data || []))
+            .catch(() => setSessions([]));
     }, []);
 
     return (
-        <div className="w-64 border-r h-screen p-3 bg-white">
+        <div className="w-64 bg-black border-r border-gray-800 p-3">
+            <h2 className="text-white font-bold mb-3">Chats</h2>
 
             <button
-                className="bg-green-500 text-white px-3 py-1 rounded w-full mb-3"
+                className="w-full mb-3 p-2 bg-green-500 text-black rounded"
                 onClick={() => window.location.reload()}
             >
                 + New Chat
             </button>
 
-            <h2 className="font-bold mb-2">Chats</h2>
-
-            {sessions.map((s: any) => (
-                <div
-                    key={s.sessionId}
-                    onClick={() => onSelect(s.sessionId)}
-                    className={`p-2 rounded cursor-pointer hover:bg-gray-200 ${activeSession === s.sessionId ? "bg-gray-300" : ""
-                        }`}
-                >
-                    💬 {s.title || "New Chat"}
-                </div>
-            ))}
+            <div className="space-y-2">
+                {sessions.map((s) => (
+                    <div
+                        key={s._id}
+                        onClick={() => onSelect(s._id)}
+                        className={`p-2 rounded cursor-pointer text-sm ${activeSession === s._id
+                                ? "bg-green-500 text-black"
+                                : "bg-gray-900 text-white"
+                            }`}
+                    >
+                        {s.title || "Untitled Chat"}
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
