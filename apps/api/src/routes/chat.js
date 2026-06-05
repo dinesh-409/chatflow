@@ -19,10 +19,8 @@ router.post("/chat-stream", async (req, res) => {
     res.setHeader("Connection", "keep-alive");
 
     try {
-
         await createSession(sessionId);
 
-        // LOAD OLD MEMORY FIRST
         const memory = await getMemory(sessionId);
 
         const context = memory.messages
@@ -55,18 +53,20 @@ Assistant:
         });
 
         for await (const chunk of stream) {
-
             if (aborted) break;
 
             const text = chunk.toString();
 
             fullResponse += text;
 
-            res.write(`data: ${text}\n\n`);
+            res.write(
+                `data: ${JSON.stringify({
+                    text,
+                })}\n\n`
+            );
         }
 
         if (!aborted) {
-
             await addMessage(
                 sessionId,
                 "user",
@@ -83,13 +83,13 @@ Assistant:
         }
 
         res.end();
-
     } catch (err) {
-
         console.error(err);
 
         res.write(
-            `data: Error: ${err.message}\n\n`
+            `data: ${JSON.stringify({
+                error: err.message,
+            })}\n\n`
         );
 
         res.end();
