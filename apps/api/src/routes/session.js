@@ -11,7 +11,7 @@ const router = express.Router();
 router.get("/sessions", async (req, res) => {
     try {
         const sessions = await Session.find({})
-            .sort({ createdAt: -1 });
+            .sort({ isPinned: -1, updatedAt: -1, createdAt: -1 });
             
         // Filter out empty "New Chat" sessions dynamically
         const validSessions = [];
@@ -60,6 +60,46 @@ router.get("/sessions/:id", async (req, res) => {
         res.status(500).json({
             error: err.message,
         });
+    }
+});
+
+/* =========================
+   UPDATE SESSION (Rename, Pin, Archive)
+========================= */
+
+router.put("/sessions/:id", async (req, res) => {
+    try {
+        const { title, isPinned, isArchived } = req.body;
+        
+        const updateData = {};
+        if (title !== undefined) updateData.title = title;
+        if (isPinned !== undefined) updateData.isPinned = isPinned;
+        if (isArchived !== undefined) updateData.isArchived = isArchived;
+        
+        const session = await Session.findOneAndUpdate(
+            { sessionId: req.params.id },
+            { $set: updateData },
+            { new: true }
+        );
+        
+        if (!session) return res.status(404).json({ error: "Session not found" });
+        res.json(session);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* =========================
+   DELETE SESSION
+========================= */
+
+router.delete("/sessions/:id", async (req, res) => {
+    try {
+        await Session.findOneAndDelete({ sessionId: req.params.id });
+        await Memory.findOneAndDelete({ sessionId: req.params.id });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 

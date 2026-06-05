@@ -68,6 +68,12 @@ Assistant:
             message: prompt,
             mode: selectedMode,
         });
+        
+        let modelDisplayName = "Gemini 3.1 Pro";
+        if (selectedMode === "groq") modelDisplayName = "Groq Llama 3.1";
+        if (selectedMode === "openrouter") modelDisplayName = "OpenRouter GPT-4o";
+
+        res.write(`data: ${JSON.stringify({ type: "meta", model: modelDisplayName })}\n\n`);
 
         let fullResponse = "";
         let aborted = false;
@@ -92,14 +98,16 @@ Assistant:
         await addMessage(
             sessionId,
             "user",
-            message
+            message,
+            selectedMode
         );
 
         if (fullResponse) {
             await addMessage(
                 sessionId,
                 "ai",
-                fullResponse
+                fullResponse,
+                selectedMode
             );
         }
 

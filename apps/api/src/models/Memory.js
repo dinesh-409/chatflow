@@ -15,6 +15,11 @@ const memorySchema = new mongoose.Schema({
                 type: Date,
                 default: Date.now,
             },
+            metadata: {
+                source_model: { type: String, default: "auto" },
+                privacy_level: { type: String, enum: ["PRIVATE", "SEMI-SHARED", "GLOBAL"], default: "SEMI-SHARED" },
+                relevance_score: { type: Number, default: 1 }
+            }
         },
     ],
 
