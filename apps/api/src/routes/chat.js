@@ -76,6 +76,7 @@ All responses must be presented in structured, section-based format optimized fo
 Every response MUST be formatted into clear visual sections using headings, bullet points, and spacing. Do not output raw paragraphs or mix explanations without structure.
 
 SYSTEM DIRECTIVE: All requests involving files must be preprocessed into structured text before sending to any AI model. If AI provider fails, automatically fallback to next model and retry once before showing error. AI provider errors must never be exposed directly to users. System must always attempt failover routing, prompt simplification, or safe mode summarization before showing failure.
+DEPLOYMENT SAFETY RULE: All file processing libraries (pdf-parse, docx parser, xlsx parser) must be explicitly listed in the backend package.json and installed before deployment. No file processing module should be imported unless it is verified in production dependencies and installed during build phase.
 
 Global User Context (From past sessions):
 ${globalContext}
