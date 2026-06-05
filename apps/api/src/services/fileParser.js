@@ -22,7 +22,9 @@ export async function parseFileLocal(fileUrl) {
             return data.text;
         } else if (ext === ".txt" || ext === ".md" || ext === ".json" || ext === ".csv") {
             return fs.readFileSync(filePath, "utf-8");
-        } else if (ext === ".doc" || ext === ".docx" || ext === ".ppt" || ext === ".pptx") {
+        } else if (ext === ".doc") {
+            return `[SYSTEM NOTE: The file ${filename} is in the outdated .doc format. Please politely inform the user that you cannot read old .doc files, and ask them to convert it to .docx or .pdf for text extraction.]`;
+        } else if (ext === ".docx" || ext === ".ppt" || ext === ".pptx") {
             const data = await officeParser.parseOfficeAsync(filePath);
             return data;
         } else {
