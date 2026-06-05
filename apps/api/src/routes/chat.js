@@ -1,7 +1,7 @@
 import express from "express";
 import { aiRouterStream } from "../services/routerStream.js";
 import { chooseModel } from "../services/modelRouter.js";
-import { addMessage, getMemory } from "../services/memoryService.js";
+import { addMessage, getMemory, getGlobalMemory } from "../services/memoryService.js";
 import { createSession } from "../services/sessionService.js";
 
 const router = express.Router();
@@ -32,12 +32,15 @@ router.post("/chat-stream", async (req, res) => {
                     session.title = generatedTitle.replace(/["']/g, "").trim();
                     await session.save();
                 } catch (e) {
-                    // ignore title generation errors
+                    // Fallback to first few words if AI rate-limits
+                    session.title = message.split(" ").slice(0, 3).join(" ");
+                    await session.save();
                 }
             })();
         }
 
         const memory = await getMemory(sessionId);
+        const globalContext = await getGlobalMemory(sessionId);
 
         const context = memory.messages
             .slice(-10)
@@ -47,7 +50,10 @@ router.post("/chat-stream", async (req, res) => {
         const prompt = `
 You are ChatFlow AI.
 
-Previous Conversation:
+Global User Context (From past sessions):
+${globalContext}
+
+Previous Conversation (Current Session):
 ${context}
 
 User:
