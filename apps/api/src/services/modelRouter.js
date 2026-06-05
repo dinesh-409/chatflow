@@ -11,7 +11,12 @@ export const chooseModel = (message, mode = "auto") => {
         return "gemini"; // Multilingual + fast context
     }
 
-    // 2. Coding / Instruction Following Intent
+    // 2. Current Affairs / Factual (Needs Search + GPT/Gemini)
+    if (shouldUseWebSearch(message)) {
+        return "openrouter"; // GPT-4o is best at synthesizing search results
+    }
+
+    // 3. Coding / Instruction Following Intent
     if (
         text.includes("code") ||
         text.includes("fix") ||
@@ -23,7 +28,7 @@ export const chooseModel = (message, mode = "auto") => {
         return "openrouter"; // ChatGPT preferred for coding/instructions
     }
 
-    // 3. Deep Analysis / Compare / Design Intent
+    // 4. Deep Analysis / Compare / Design Intent
     if (
         text.includes("analyze") ||
         text.includes("compare") ||
@@ -32,11 +37,10 @@ export const chooseModel = (message, mode = "auto") => {
         text.includes("explain") ||
         text.length > 500
     ) {
-        // Maps to Claude/Deep Analysis via OpenRouter
         return "openrouter"; 
     }
 
-    // 4. Summarize / Fast Intent
+    // 5. Summarize / Fast Intent
     if (
         text.includes("summarize") ||
         text.includes("short") ||
@@ -47,4 +51,16 @@ export const chooseModel = (message, mode = "auto") => {
 
     // Default fallback
     return "gemini";
+};
+
+// 🌍 Real-Time Knowledge Router
+export const shouldUseWebSearch = (message) => {
+    const text = message.toLowerCase();
+    const factualKeywords = [
+        "today", "now", "latest", "news", "current", "price", 
+        "president", "election", "match", "score", "weather",
+        "who is", "what is the status", "update"
+    ];
+    
+    return factualKeywords.some(keyword => text.includes(keyword));
 };

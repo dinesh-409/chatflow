@@ -4,6 +4,8 @@ import { chooseModel } from "../services/modelRouter.js";
 import { addMessage, getMemory, getGlobalMemory } from "../services/memoryService.js";
 import { createSession } from "../services/sessionService.js";
 import { parseFileLocal } from "../services/fileParser.js";
+import { performWebSearch } from "../services/webSearchService.js";
+import { shouldUseWebSearch } from "../services/modelRouter.js";
 
 const router = express.Router();
 
@@ -40,6 +42,16 @@ router.post("/chat-stream", async (req, res) => {
             }
             // Strip the raw URLs so we don't send localhost links to the provider
             modifiedMessage = modifiedMessage.replace(match[0], "[Files Processed Locally]");
+        }
+
+        // 🌐 LIVE WEB SEARCH PIPELINE
+        if (shouldUseWebSearch(message)) {
+            const liveData = await performWebSearch(message);
+            if (liveData) {
+                modifiedMessage += `\n\n--- ${liveData} ---\n`;
+            } else {
+                modifiedMessage += `\n\n[SYSTEM NOTE: Live search was attempted but no results were found. If this requires current facts, explicitly state: "Real-time data is currently not available for this query."]`;
+            }
         }
 
         const session = await createSession(sessionId);
@@ -82,6 +94,7 @@ DYNAMIC CLASSIFICATION RULE: Before responding, internally classify the user's i
 
 SYSTEM DIRECTIVE: All requests involving files must be preprocessed into structured text before sending to any AI model. If AI provider fails, automatically fallback to next model and retry once before showing error. AI provider errors must never be exposed directly to users. System must always attempt failover routing, prompt simplification, or safe mode summarization before showing failure.
 DEPLOYMENT SAFETY RULE: All file processing libraries (pdf-parse, docx parser, xlsx parser) must be explicitly listed in the backend package.json and installed before deployment. No file processing module should be imported unless it is verified in production dependencies and installed during build phase.
+FACTUAL ACCURACY RULE: Prioritize correctness over speed. For current affairs, politics, news, or real-world status, rely on [LIVE SEARCH RESULTS] provided below. NEVER mention training cutoffs like "October 2023" or apologize for being an AI. If you don't have live data for a highly factual current query, gracefully state: "Real-time data is currently not available for this query." Do not hallucinate outdated facts.
 
 Global User Context (From past sessions):
 ${globalContext}
