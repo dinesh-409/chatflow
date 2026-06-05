@@ -1,30 +1,42 @@
 import express from "express";
-import { createSession, getAllSessions } from "../services/sessionService.js";
+import Session from "../models/Session.js";
 
 const router = express.Router();
 
-// create session
-router.post("/session", async (req, res) => {
-    const { sessionId } = req.body;
-    const session = await createSession(sessionId);
-    res.json(session);
-});
+/* GET ALL SESSIONS */
 
-// get all sessions
 router.get("/sessions", async (req, res) => {
-    const sessions = await getAllSessions();
-    res.json(sessions);
+    try {
+        const sessions = await Session.find({})
+            .sort({ updatedAt: -1 });
+
+        res.json(sessions);
+    } catch (err) {
+        res.status(500).json({
+            error: err.message,
+        });
+    }
 });
 
-import { getMemory } from "../services/memoryService.js";
+/* GET SINGLE SESSION */
 
-// get session history
-router.get("/session/:sessionId", async (req, res) => {
+router.get("/sessions/:id", async (req, res) => {
     try {
-        const memory = await getMemory(req.params.sessionId);
-        res.json(memory);
+        const session = await Session.findOne({
+            sessionId: req.params.id,
+        });
+
+        if (!session) {
+            return res.json({
+                messages: [],
+            });
+        }
+
+        res.json(session);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({
+            error: err.message,
+        });
     }
 });
 
