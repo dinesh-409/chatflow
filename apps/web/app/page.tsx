@@ -21,10 +21,22 @@ export default function Page() {
   const sessionIdRef = useRef("");
 
   useEffect(() => {
-    if (!sessionIdRef.current) {
+    const savedSession =
+      localStorage.getItem("chatflow_session");
+
+    if (savedSession) {
+      sessionIdRef.current = savedSession;
+      setActiveSession(savedSession);
+    } else {
       const id = crypto.randomUUID();
+
       sessionIdRef.current = id;
       setActiveSession(id);
+
+      localStorage.setItem(
+        "chatflow_session",
+        id
+      );
     }
   }, []);
 
@@ -38,7 +50,10 @@ export default function Page() {
       .then((data) => {
         setChat(
           (data?.messages || []).map(
-            (m: { role: "user" | "ai"; text: string }) => ({
+            (m: {
+              role: "user" | "ai";
+              text: string;
+            }) => ({
               role: m.role,
               text: m.text,
             })
@@ -78,12 +93,14 @@ export default function Page() {
         {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
           },
           signal: controller.signal,
           body: JSON.stringify({
             message: msg,
-            sessionId: sessionIdRef.current,
+            sessionId:
+              sessionIdRef.current,
             mode,
           }),
         }
@@ -101,7 +118,8 @@ export default function Page() {
       let aiText = "";
 
       while (true) {
-        const { done, value } = await reader.read();
+        const { done, value } =
+          await reader.read();
 
         if (done) break;
 
@@ -109,43 +127,45 @@ export default function Page() {
           stream: true,
         });
 
-        const lines = buffer.split("\n");
+        const lines =
+          buffer.split("\n");
 
         buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
+          if (
+            !line.startsWith("data: ")
+          )
+            continue;
 
-          const raw = line.replace("data: ", "").trim();
+          const raw = line
+            .replace("data: ", "")
+            .trim();
 
-          if (raw === "[DONE]") continue;
+          if (raw === "[DONE]")
+            continue;
 
-          try {
-            const parsed = JSON.parse(raw);
+          aiText += raw;
 
-            if (parsed.text) {
-              aiText += parsed.text;
+          setChat((prev) => {
+            const updated = [...prev];
 
-              setChat((prev) => {
-                const updated = [...prev];
+            updated[
+              updated.length - 1
+            ] = {
+              role: "ai",
+              text: aiText,
+            };
 
-                if (updated.length > 0) {
-                  updated[updated.length - 1] = {
-                    role: "ai",
-                    text: aiText,
-                  };
-                }
-
-                return updated;
-              });
-            }
-          } catch (err) {
-            console.error("Stream Parse Error:", err);
-          }
+            return updated;
+          });
         }
       }
     } catch (err) {
-      console.error("Stream Error:", err);
+      console.error(
+        "Stream Error:",
+        err
+      );
     } finally {
       setLoading(false);
     }
@@ -166,6 +186,13 @@ export default function Page() {
       <ChatSidebar
         activeSession={activeSession}
         onSelect={(id: string) => {
+          sessionIdRef.current = id;
+
+          localStorage.setItem(
+            "chatflow_session",
+            id
+          );
+
           setActiveSession(id);
           setChat([]);
         }}
@@ -210,10 +237,13 @@ export default function Page() {
           <input
             value={message}
             onChange={(e) =>
-              setMessage(e.target.value)
+              setMessage(
+                e.target.value
+              )
             }
             onKeyDown={(e) =>
-              e.key === "Enter" && sendMessage()
+              e.key === "Enter" &&
+              sendMessage()
             }
             placeholder="Message ChatFlow AI..."
             className="flex-1 p-3 rounded-xl bg-gray-900 border border-gray-700"

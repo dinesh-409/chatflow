@@ -1,14 +1,17 @@
 import express from "express";
 import Session from "../models/Session.js";
+import Memory from "../models/Memory.js";
 
 const router = express.Router();
 
-/* GET ALL SESSIONS */
+/* =========================
+   GET ALL SESSIONS
+========================= */
 
 router.get("/sessions", async (req, res) => {
     try {
         const sessions = await Session.find({})
-            .sort({ updatedAt: -1 });
+            .sort({ createdAt: -1 });
 
         res.json(sessions);
     } catch (err) {
@@ -18,21 +21,25 @@ router.get("/sessions", async (req, res) => {
     }
 });
 
-/* GET SINGLE SESSION */
+/* =========================
+   GET SINGLE SESSION
+========================= */
 
 router.get("/sessions/:id", async (req, res) => {
     try {
-        const session = await Session.findOne({
+        const memory = await Memory.findOne({
             sessionId: req.params.id,
         });
 
-        if (!session) {
+        if (!memory) {
             return res.json({
                 messages: [],
             });
         }
 
-        res.json(session);
+        res.json({
+            messages: memory.messages,
+        });
     } catch (err) {
         res.status(500).json({
             error: err.message,
