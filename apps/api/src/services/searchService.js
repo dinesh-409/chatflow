@@ -172,8 +172,8 @@ export function mergeResults(...arrays) {
     merged.sort((a, b) => b._score - a._score);
 
     // Return clean objects (spread picks only enumerable keys)
-    return merged.slice(0, MAX_TOTAL).map(({ title, snippet, url, source }) =>
-        ({ title, snippet, url, source })
+    return merged.slice(0, MAX_TOTAL).map(({ title, snippet, url }) =>
+        ({ title, snippet, url })
     );
 }
 
@@ -189,7 +189,7 @@ export function formatForPrompt(results) {
     if (!results?.length) return "[SEARCH]: No live results found.";
 
     return "LIVE SEARCH RESULTS:\n\n" + results.map((r, i) =>
-        `[${i + 1}] ${r.source.toUpperCase()}\nTitle: ${r.title}\nSummary: ${r.snippet}\nURL: ${r.url}`
+        `[${i + 1}]\nTitle: ${r.title}\nSummary: ${r.snippet}\nURL: ${r.url}`
     ).join("\n\n");
 }
 

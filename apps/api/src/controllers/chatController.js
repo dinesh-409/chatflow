@@ -99,12 +99,6 @@ export const handleBasicChat = async (req, res) => {
         intent    : decision.intent,
         mode      : responseMode,
         sources   : [],
-        routing   : {
-            model      : decision.model,
-            confidence : decision.confidence,
-            reason     : decision.reason,
-            failover   : decision.failover,
-        },
     });
 };
 
@@ -233,7 +227,7 @@ export const handleChatStream = async (req, res) => {
             if (aborted) break;
             const text = chunk.toString();
             fullResponse += text;
-            res.write(`data: ${JSON.stringify({ text })}\n\n`);
+            res.write(`data: ${JSON.stringify({ type: "token", text })}\n\n`);
         }
 
         /* ── STEP 9: DONE EVENT ───────────────────────────────── */

@@ -183,28 +183,15 @@ export const getGlobalMemory = async (currentSessionId, userId = "anonymous") =>
 /* =========================================================
    CORE — injectMemoryToPrompt
 ========================================================= */
-export const injectMemoryToPrompt = async (basePrompt, sessionId, currentQuery = "", userId = "anonymous") => {
-    const [history, relevantMsgs, globalCtx] = await Promise.all([
-        getChatHistory(sessionId, 10),
-        getRelevantMemory(sessionId, currentQuery, 5),
-        getGlobalMemory(sessionId, userId),
-    ]);
-
-    const recentContext = history.map(m => `${m.role}: ${m.text}`).join("\n");
+export const injectMemoryToPrompt = async (basePrompt, sessionId) => {
+    const history = await getChatHistory(sessionId, 5); // Last 5 messages
     
-    const recentTexts = new Set(history.map(m => m.text));
-    const relevantContext = relevantMsgs
-        .filter(m => !recentTexts.has(m.text))
-        .map(m => `${m.role}: ${m.text}`)
-        .join("\n");
+    let contextSummary = "";
+    if (history.length > 0) {
+        contextSummary = "Context:\n" + history.map(m => `- ${m.role}: ${m.text}`).join("\n");
+    }
 
-    const contextSummary = [
-        globalCtx ? `[Global Context]\n${globalCtx}` : "",
-        relevantContext ? `[Relevant Past Context]\n${relevantContext}` : "",
-        recentContext ? `[Recent Conversation]\n${recentContext}` : "",
-    ].filter(Boolean).join("\n\n");
-
-    const enrichedPrompt = `${basePrompt}\n\n--- MEMORY CONTEXT ---\n${contextSummary || "No prior context available."}\n--- END MEMORY CONTEXT ---`;
+    const enrichedPrompt = `${basePrompt}\n\n${contextSummary}`;
 
     return { enrichedPrompt, contextSummary };
 };
