@@ -219,8 +219,12 @@ export const handleChatStream = async (req, res) => {
 
         /* ── STEP 9: DONE EVENT ───────────────────────────────── */
         if (!aborted) {
-            // Strictly clean done event, no metadata
-            res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+            // Append model used to the text explicitly per user request
+            const modelBadge = `\n\n**Model Used:** ${_nameOf(streamMode)}`;
+            fullResponse += modelBadge;
+            res.write(`data: ${JSON.stringify({ type: "token", text: modelBadge })}\n\n`);
+            
+            // Only send standard [DONE] to close stream, omitting {type: "done"} object to prevent UI text leakage
             res.write("data: [DONE]\n\n");
         }
 
