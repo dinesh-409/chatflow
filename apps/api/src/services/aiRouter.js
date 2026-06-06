@@ -17,14 +17,14 @@ export const MODEL_REGISTRY = {
         displayName: "Gemini 3.1 Pro",
         strengths: ["casual", "explain", "summarize", "factual", "multilingual", "news synthesis"],
     },
-    "claude-sonnet": {
-        id: "claude-sonnet",
-        displayName: "Claude Sonnet",
-        strengths: ["analysis", "creative", "long-form writing", "coding (medium)"],
+    "groq": {
+        id: "groq",
+        displayName: "Groq Llama 3.1",
+        strengths: ["analysis", "creative", "long-form writing", "coding (simple)"],
     },
-    "claude-opus": {
-        id: "claude-opus",
-        displayName: "Claude Opus",
+    "openrouter": {
+        id: "openrouter",
+        displayName: "OpenRouter GPT-4o",
         strengths: ["deep research", "complex code", "large document analysis"],
     },
     "search": {
@@ -70,50 +70,50 @@ const ROUTING_RULES = [
     {
         id: "deep_research-high",
         condition: (ir) => ir.intent === "deep_research" && ir.complexity === "high",
-        model: "claude-opus",
-        reason: "Deep research + high complexity — Claude Opus"
+        model: "openrouter",
+        reason: "Deep research + high complexity — OpenRouter GPT-4o"
     },
     // 06. Deep research + medium/low complexity
     {
         id: "deep_research-med_low",
         condition: (ir) => ir.intent === "deep_research" && ir.complexity !== "high",
-        model: "claude-sonnet",
-        reason: "Deep research + medium/low complexity — Claude Sonnet"
+        model: "groq",
+        reason: "Deep research + medium/low complexity — Groq Llama 3.1"
     },
     // 07. Coding — complex
     {
         id: "coding-high",
         condition: (ir) => ir.intent === "coding" && ir.complexity === "high",
-        model: "claude-opus",
-        reason: "Coding + high complexity — Claude Opus"
+        model: "openrouter",
+        reason: "Coding + high complexity — OpenRouter GPT-4o"
     },
     // 08. Coding — simple
     {
         id: "coding-med_low",
         condition: (ir) => ir.intent === "coding" && ir.complexity !== "high",
-        model: "claude-sonnet",
-        reason: "Coding + medium/low complexity — Claude Sonnet"
+        model: "groq",
+        reason: "Coding + medium/low complexity — Groq Llama 3.1"
     },
     // 09. Analysis / compare
     {
         id: "analysis",
         condition: (ir) => ir.intent === "analysis",
-        model: "claude-sonnet",
-        reason: "Analysis / compare — Claude Sonnet"
+        model: "groq",
+        reason: "Analysis / compare — Groq Llama 3.1"
     },
     // 10. Long-form writing
     {
         id: "long_form_writing",
         condition: (ir) => ir.intent === "long_form_writing",
-        model: "claude-sonnet",
-        reason: "Long-form writing — Claude Sonnet"
+        model: "groq",
+        reason: "Long-form writing — Groq Llama 3.1"
     },
     // 11. Creative writing
     {
         id: "creative",
         condition: (ir) => ir.intent === "creative",
-        model: "claude-sonnet",
-        reason: "Creative writing — Claude Sonnet"
+        model: "groq",
+        reason: "Creative writing — Groq Llama 3.1"
     },
     // 12. Summarisation
     {
@@ -140,8 +140,8 @@ const ROUTING_RULES = [
     {
         id: "long_file",
         condition: (ir) => ir.hasFile && ir.complexity === "high",
-        model: "claude-opus",
-        reason: "Very long file context — Claude Opus"
+        model: "openrouter",
+        reason: "Very long file context — OpenRouter GPT-4o"
     }
 ];
 
@@ -149,9 +149,9 @@ const ROUTING_RULES = [
    FAILOVER CHAIN
 ========================================================= */
 const FAILOVER_CHAIN = {
-    "gemini": ["claude-sonnet"],
-    "claude-sonnet": ["gemini"],
-    "claude-opus": ["claude-sonnet", "gemini"],
+    "gemini": ["groq", "openrouter"],
+    "groq": ["gemini", "openrouter"],
+    "openrouter": ["gemini", "groq"],
     "search": ["gemini"],
 };
 
