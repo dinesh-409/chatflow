@@ -190,13 +190,14 @@ export const handleChatStream = async (req, res) => {
         }
 
         /* ── STEP 5: MEMORY INJECTION ─────────────────────────── */
-        const { enrichedPrompt } = await injectMemoryToPrompt(
-            SYSTEM_PROMPT, sessionId, message, userId
+        const { contextSummary } = await injectMemoryToPrompt(
+            "", sessionId, message, userId
         );
 
         /* ── STEP 7: ASSEMBLE PROMPT ──────────────────────────── */
         const modeInstructions = getModePromptInstructions(responseMode);
-        const finalPrompt = `${enrichedPrompt}\n\n${modeInstructions}\n\nUser:\n${modifiedMessage}`;
+        
+        const finalPrompt = `${SYSTEM_PROMPT}\n\n${modeInstructions}\n\n${contextSummary}[CURRENT MESSAGE]\nUser: ${modifiedMessage}`;
 
         // (Metadata is no longer sent via SSE stream to prevent leakage.
         // It is saved to the DB below and can be fetched via standard JSON API)
