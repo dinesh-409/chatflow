@@ -33,6 +33,7 @@
 import { aiRouterStream }                             from "../services/routerStream.js";
 import { selectModel }                                from "../services/aiRouter.js";
 import { shouldUseWebSearch }                         from "../services/modelRouter.js";
+import { decideResponseMode, getModePromptInstructions } from "../services/responseModeService.js";
 import {
     saveMessage,
     addMessage,
@@ -78,9 +79,10 @@ export const handleBasicChat = async (req, res) => {
 
     // SINGLE routing call — no legacy chooseModel
     const decision = selectModel(message, {}, mode);
+    const responseMode = decideResponseMode(message, decision.needsSearch || shouldUseWebSearch(message));
 
     console.log(
-        `[ROUTER] intent="${decision.intent}" | model="${decision.displayName}" | ${decision.reason}`
+        `[ROUTER] intent="${decision.intent}" | model="${decision.displayName}" | mode="${responseMode}" | ${decision.reason}`
     );
 
     // Consistent response envelope
@@ -88,6 +90,7 @@ export const handleBasicChat = async (req, res) => {
         answer    : `[STUB] Will be handled by ${decision.displayName}. Connect Phase 4 streaming.`,
         model_used: decision.displayName,
         intent    : decision.intent,
+        mode      : responseMode,
         sources   : [],
         routing   : {
             model      : decision.model,
@@ -124,13 +127,15 @@ export const handleChatStream = async (req, res) => {
         ─────────────────────────────────────────────────────── */
         const decision    = selectModel(message, {}, mode);
         const needsSearch = decision.needsSearch || shouldUseWebSearch(message);
+        const responseMode = decideResponseMode(message, needsSearch);
+
         // Effective stream model: if search needed, gemini synthesises
         const streamMode  = (mode !== "auto")
             ? mode
             : (decision.model === "search" ? "gemini" : decision.model);
 
         console.log(
-            `[ROUTER] intent="${decision.intent}" | model="${_nameOf(streamMode)}" | ${decision.reason}`
+            `[ROUTER] intent="${decision.intent}" | model="${_nameOf(streamMode)}" | mode="${responseMode}" | ${decision.reason}`
         );
 
         /* ── STEP 2: FILE PROCESSING ──────────────────────────── */
@@ -190,19 +195,23 @@ export const handleChatStream = async (req, res) => {
         );
 
         /* ── STEP 6: ASSEMBLE PROMPT ──────────────────────────── */
-        const finalPrompt = `${enrichedPrompt}\n\nUser:\n${modifiedMessage}`;
+        const modeInstructions = getModePromptInstructions(responseMode);
+        const finalPrompt = `${enrichedPrompt}\n\n${modeInstructions}\n\nUser:\n${modifiedMessage}`;
 
         /* ── STEP 7: EMIT META SSE EVENT ──────────────────────── */
+        const emitSources = responseMode === "clean_summary" ? [] : searchSources;
+
         // Meta event carries the consistent response envelope header
         res.write(`data: ${JSON.stringify({
             type      : "meta",
             model_used: _nameOf(streamMode),
             intent    : decision.intent,
+            mode      : responseMode,
             confidence: decision.confidence,
             reason    : decision.reason,
             hasSearch : searchSources.length > 0,
             hasFile   : !!fileContext,
-            sources   : searchSources,   // clean array, no score/image fields
+            sources   : emitSources,   // clean array, no score/image fields
         })}\n\n`);
 
         /* ── STEP 8: STREAM AI RESPONSE ───────────────────────── */
@@ -227,7 +236,8 @@ export const handleChatStream = async (req, res) => {
                 type      : "done",
                 model_used: _nameOf(streamMode),
                 intent    : decision.intent,
-                sources   : searchSources,
+                mode      : responseMode,
+                sources   : emitSources,
             })}\n\n`);
             res.write("data: [DONE]\n\n");
         }
