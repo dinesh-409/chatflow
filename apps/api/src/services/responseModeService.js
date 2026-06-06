@@ -45,15 +45,15 @@ export function getModePromptInstructions(mode) {
     switch (mode) {
         case "clean_summary":
             return `${universalRule}
-MODE: clean_summary. EXPLAIN CONCEPTS CLEARLY. DO NOT include any links, URLs, citations, or 'for more info refer to' statements in your output. Provide a purely structural, human-like explanation.`;
+MODE: clean_summary. EXPLAIN CONCEPTS CLEARLY AND ELABORATELY. Break down the answer into highly structured paragraphs and bullet points. Use emojis and distinct headings to categorize information. DO NOT provide brief or one-liner responses. DO NOT include any links, URLs, or citations in your output.`;
         
         case "detailed_with_sources":
             return `${universalRule}
-MODE: detailed_with_sources. PROVIDE DETAILED EXPLANATION. Do not inject raw links mid-sentence. You may list references at the very end of your response if strictly necessary, but prioritize readability.`;
+MODE: detailed_with_sources. PROVIDE A HIGHLY DETAILED AND CATEGORIZED EXPLANATION. Synthesize multiple data points from the sources into a rich, comprehensive format. Use distinct headings, bold text, and emojis extensively. Do not inject raw links mid-sentence.`;
         
         case "mixed_mode":
             return `${universalRule}
-MODE: mixed_mode. Provide a clean explanation or comparison first. Do not clutter the text with raw URLs. You may add a brief optional sources section at the very end.`;
+MODE: mixed_mode. Provide an elaborate, deep, and multi-faceted analysis. Use rich Markdown formatting, distinct headings, emojis, and structured lists. Do not clutter the text with raw URLs.`;
         
         default:
             return universalRule;

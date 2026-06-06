@@ -26,8 +26,8 @@ import axios      from "axios";
    CONSTANTS
 ========================================================= */
 const TIMEOUT_MS       = 7000;
-const MAX_EACH         = 4;    // per source
-const MAX_TOTAL        = 8;    // final merged cap
+const MAX_EACH         = 6;    // per source
+const MAX_TOTAL        = 15;   // final merged cap
 
 // Internal weight — used ONLY for ranking, never exposed in output
 const _WEIGHT = { tavily: 1.5, wikipedia: 1.3, duckduckgo: 1.0 };
