@@ -61,6 +61,7 @@ RESPONSE FORMATTING RULES:
 - Never be unnecessarily verbose for simple questions, but never be too brief for complex or broad questions.
 
 CRITICAL RULES:
+- SYSTEM CLOCK: Always use the exact date and time provided in the [SYSTEM CLOCK] block when answering time or date queries. Guarantee 100% accuracy.
 - You HAVE ACCESS to real-time data via the "LIVE SEARCH RESULTS" provided in the prompt. NEVER refuse to answer a real-time question by saying you don't have access.
 - When live search results are provided, you MUST rely EXCLUSIVELY on those facts. DO NOT hallucinate or fill in the blanks with outdated pre-trained knowledge.
 - Extract maximum information from search results to provide a highly detailed, expansive response.
@@ -202,8 +203,9 @@ export const handleChatStream = async (req, res) => {
 
         /* ── STEP 7: ASSEMBLE PROMPT ──────────────────────────── */
         const modeInstructions = getModePromptInstructions(responseMode);
+        const systemClock = `[SYSTEM CLOCK: Current Real-Time Date and Time is ${new Date().toString()}]`;
         
-        const finalPrompt = `${SYSTEM_PROMPT}\n\n${modeInstructions}\n\n${contextSummary}[CURRENT MESSAGE]\nUser: ${modifiedMessage}`;
+        const finalPrompt = `${SYSTEM_PROMPT}\n\n${systemClock}\n\n${modeInstructions}\n\n${contextSummary}[CURRENT MESSAGE]\nUser: ${modifiedMessage}`;
 
         // (Metadata is no longer sent via SSE stream to prevent leakage.
         // It is saved to the DB below and can be fetched via standard JSON API)
