@@ -57,8 +57,15 @@ RESPONSE RULES:
 - INTERMEDIATE (what is X, summarize Y): Short overview + 2-3 bullet points.
 - HIGH (explain concept, compare tools): Headings + Overview + Breakdown + Summary.
 - ULTRA (design system, write codebase): Full Markdown with nested sections, code blocks, diagrams.
-ACCURACY: For live data use [SEARCH RESULTS] below. Never guess current events.
-NEVER expose internal model names, API errors, or routing decisions to users.`.trim();
+
+CRITICAL RULES:
+- Never include raw links or URLs inside your answer text.
+- Never say "for more details refer to" or similar phrases.
+- Only include sources if explicitly required by the response mode.
+- Always produce a clean, structured, and human-readable explanation.
+- Prioritize understanding and clarity over raw citation.
+- If search data exists, use it internally only to inform your answer.
+- NEVER expose internal model names, API errors, or routing decisions to users.`.trim();
 
 /* =========================================================
    HELPERS
