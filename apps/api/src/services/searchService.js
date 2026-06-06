@@ -21,7 +21,6 @@
  */
 
 import axios      from "axios";
-import { search } from "duck-duck-scrape";
 
 /* =========================================================
    CONSTANTS
@@ -130,16 +129,47 @@ export async function searchWiki(query) {
 ========================================================= */
 async function _duckduckgo(query) {
     try {
-        const raw = await search(query, { safeSearch: "moderate", time: "y" });
-        return (raw?.results || []).slice(0, MAX_EACH).map(r =>
-            _norm({
-                title  : r.title,
-                snippet: r.description,
-                url    : r.url,
-                source : "duckduckgo",
-                _score : _WEIGHT.duckduckgo,
-            })
+        const res = await axios.post(
+            "https://html.duckduckgo.com/html/",
+            `q=${encodeURIComponent(query)}`,
+            {
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                timeout: TIMEOUT_MS
+            }
         );
+
+        const html = res.data;
+        const blocks = html.split('result__body');
+        const results = [];
+
+        for (let i = 1; i < blocks.length; i++) {
+            const block = blocks[i];
+            const titleMatch = block.match(/result__title[^>]*>([\s\S]*?)<\/h2>/);
+            const snippetMatch = block.match(/result__snippet[^>]*>([\s\S]*?)<\/a>/);
+            const urlMatch = block.match(/href="([^"]+)"/);
+
+            if (titleMatch && snippetMatch && urlMatch) {
+                let title = titleMatch[1].replace(/<[^>]+>/g, "").trim();
+                let snippet = snippetMatch[1].replace(/<[^>]+>/g, "").trim();
+                
+                // Basic HTML entity decode
+                const decode = (str) => str.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&#x2F;/g, "/");
+                
+                results.push(_norm({
+                    title: decode(title),
+                    snippet: decode(snippet),
+                    url: urlMatch[1],
+                    source: "duckduckgo",
+                    _score: _WEIGHT.duckduckgo
+                }));
+
+                if (results.length >= MAX_EACH) break;
+            }
+        }
+        return results;
     } catch (err) {
         console.warn("[SEARCH/duckduckgo]", err.message);
         return [];
