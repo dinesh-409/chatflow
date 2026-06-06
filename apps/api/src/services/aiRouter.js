@@ -1,19 +1,8 @@
 /**
- * aiRouter.js — Phase 3 Fix
+ * aiRouter.js
  * ---------------------------------------------------------
- * Root cause of "always GPT-4o" bug fixed:
- *   - "long-query" rule was matching BEFORE intent-specific rules
- *     for any message over 300 chars, routing everything to openrouter.
- *   - Rule is now moved to lowest priority (below all intent rules).
- *
- * New intents wired:
- *   - creative  → Gemini (Phase 4: Claude when available)
- *   - news      → search + Gemini
- *   - factual   → search + Gemini (was routing to openrouter)
- *   - summarize → Groq  (unchanged)
- *
- * selectModel() is still the single source of truth.
- * selectModelId() is the backward-compat string-only shim.
+ * ChatFlow — Claude × Gemini Architecture
+ * Model Selection Rules
  * ---------------------------------------------------------
  */
 
@@ -21,169 +10,160 @@ import { detectIntent } from "./intentDetector.js";
 
 /* =========================================================
    MODEL REGISTRY
-   Single source of truth. Add Claude here when API key added.
 ========================================================= */
 export const MODEL_REGISTRY = {
-    gemini: {
-        id          : "gemini",
-        displayName : "Gemini 3.1 Pro",
-        strengths   : ["factual", "multilingual", "casual", "general", "summarize", "creative", "news"],
-        available   : true,
+    "gemini": {
+        id: "gemini",
+        displayName: "Gemini 3.1 Pro",
+        strengths: ["casual", "explain", "summarize", "factual", "multilingual", "news synthesis"],
     },
-    openrouter: {
-        id          : "openrouter",
-        displayName : "OpenRouter GPT-4o",
-        strengths   : ["coding", "analysis", "reasoning", "structured", "logic"],
-        available   : true,
+    "claude-sonnet": {
+        id: "claude-sonnet",
+        displayName: "Claude Sonnet",
+        strengths: ["analysis", "creative", "long-form writing", "coding (medium)"],
     },
-    groq: {
-        id          : "groq",
-        displayName : "Groq Llama 3.1",
-        strengths   : ["summarize", "speed", "casual", "short"],
-        available   : true,
+    "claude-opus": {
+        id: "claude-opus",
+        displayName: "Claude Opus",
+        strengths: ["deep research", "complex code", "large document analysis"],
     },
-    // Phase 4 — uncomment + add CLAUDE_API_KEY to .env
-    // claude: {
-    //     id          : "claude",
-    //     displayName : "Anthropic Claude",
-    //     strengths   : ["creative", "analysis", "long-form", "research"],
-    //     available   : false,
-    // },
-    search: {
-        id          : "search",
-        displayName : "Live Search + Gemini",
-        strengths   : ["factual", "news", "real-time"],
-        available   : true,
+    "search": {
+        id: "search",
+        displayName: "Live Search + Gemini",
+        strengths: ["factual", "news", "real-time"],
     },
 };
 
 /* =========================================================
    ROUTING RULES TABLE
-   Priority order is critical — first match wins.
-   BUG FIX: moved "long-query" catch-all to LAST position.
 ========================================================= */
 const ROUTING_RULES = [
-
-    // 1. Explicit user override — always first
+    // 01. User manual override
     {
-        id        : "explicit-mode",
-        condition : (_, __, mode) => mode && mode !== "auto",
-        model     : (_, __, mode) => mode,
-        reason    : (_, __, mode) => `User selected mode: ${mode}`,
+        id: "explicit-mode",
+        condition: (_, __, mode) => mode && mode !== "auto",
+        model: (_, __, mode) => mode,
+        reason: "User manual override"
     },
-
-    // 2. Non-Latin / multilingual → Gemini
+    // 02. Non-Latin script
     {
-        id        : "multilingual",
-        condition : (ir) => ir.isMultilingual,
-        model     : "gemini",
-        reason    : "Non-Latin / regional language — Gemini multilingual",
+        id: "multilingual",
+        condition: (ir) => ir.isMultilingual,
+        model: "gemini",
+        reason: "Non-Latin script detected — Gemini handles most languages"
     },
-
-    // 3. News / real-time → search layer + Gemini for synthesis
+    // 03. News / real-time
     {
-        id      : "news",
-        intents : ["news"],
-        model   : "search",
-        reason  : "News / live update query — triggering search layer then Gemini synthesis",
+        id: "news",
+        condition: (ir) => ir.intent === "news_realtime",
+        model: "search",
+        reason: "News / real-time intent detected — Search → Gemini synthesis"
     },
-
-    // 4. Factual / real-time → search layer + Gemini
+    // 04. Factual lookup
     {
-        id      : "factual",
-        intents : ["factual"],
-        model   : "search",
-        reason  : "Factual / real-time query — search layer activated, Gemini synthesises answer",
+        id: "factual",
+        condition: (ir) => ir.intent === "factual",
+        model: "search",
+        reason: "Factual lookup intent detected — Search → Gemini synthesis"
     },
-
-    // 5. Coding / debugging → GPT-4o
+    // 05. Deep research + high complexity
     {
-        id      : "coding",
-        intents : ["coding"],
-        model   : "openrouter",
-        reason  : "Coding / debugging — GPT-4o selected for structured code generation",
+        id: "deep_research-high",
+        condition: (ir) => ir.intent === "deep_research" && ir.complexity === "high",
+        model: "claude-opus",
+        reason: "Deep research + high complexity — Claude Opus"
     },
-
-    // 6. Deep analysis / compare → GPT-4o
+    // 06. Deep research + medium/low complexity
     {
-        id      : "analysis",
-        intents : ["analysis"],
-        model   : "openrouter",
-        reason  : "Deep analysis / architecture — GPT-4o for structured reasoning",
+        id: "deep_research-med_low",
+        condition: (ir) => ir.intent === "deep_research" && ir.complexity !== "high",
+        model: "claude-sonnet",
+        reason: "Deep research + medium/low complexity — Claude Sonnet"
     },
-
-    // 7. Creative writing → Gemini (Claude when available in Phase 4)
+    // 07. Coding — complex
     {
-        id      : "creative",
-        intents : ["creative"],
-        model   : "gemini",
-        reason  : "Creative writing — Gemini selected (Claude available Phase 4)",
+        id: "coding-high",
+        condition: (ir) => ir.intent === "coding" && ir.complexity === "high",
+        model: "claude-opus",
+        reason: "Coding + high complexity — Claude Opus"
     },
-
-    // 8. Summarise → Groq (fastest)
+    // 08. Coding — simple
     {
-        id      : "summarize",
-        intents : ["summarize"],
-        model   : "groq",
-        reason  : "Summarisation — Groq Llama selected for speed",
+        id: "coding-med_low",
+        condition: (ir) => ir.intent === "coding" && ir.complexity !== "high",
+        model: "claude-sonnet",
+        reason: "Coding + medium/low complexity — Claude Sonnet"
     },
-
-    // 9. Explanation / how-to → Gemini (conversational clarity)
+    // 09. Analysis / compare
     {
-        id      : "explain",
-        intents : ["explain"],
-        model   : "gemini",
-        reason  : "Explanation request — Gemini for conversational clarity",
+        id: "analysis",
+        condition: (ir) => ir.intent === "analysis",
+        model: "claude-sonnet",
+        reason: "Analysis / compare — Claude Sonnet"
     },
-
-    // 10. Casual / greeting → Gemini
+    // 10. Long-form writing
     {
-        id      : "casual",
-        intents : ["casual"],
-        model   : "gemini",
-        reason  : "Casual / greeting — Gemini for natural tone",
+        id: "long_form_writing",
+        condition: (ir) => ir.intent === "long_form_writing",
+        model: "claude-sonnet",
+        reason: "Long-form writing — Claude Sonnet"
     },
-
-    // 11. Long query LAST — only fires when no intent matched above
-    //     ORIGINAL BUG: this was rule #5, above explain/summarize/casual
+    // 11. Creative writing
     {
-        id        : "long-query-fallback",
-        condition : (ir) => ir.isLong,
-        model     : "openrouter",
-        reason    : "Long unclassified query — GPT-4o for structured multi-part answer",
+        id: "creative",
+        condition: (ir) => ir.intent === "creative",
+        model: "claude-sonnet",
+        reason: "Creative writing — Claude Sonnet"
     },
+    // 12. Summarisation
+    {
+        id: "summarize",
+        condition: (ir) => ir.intent === "summarize",
+        model: "gemini",
+        reason: "Summarisation — Gemini for speed priority"
+    },
+    // 13. Explanation / how-to
+    {
+        id: "explain",
+        condition: (ir) => ir.intent === "explain",
+        model: "gemini",
+        reason: "Explanation / how-to — Gemini"
+    },
+    // 14. Casual / greeting
+    {
+        id: "casual",
+        condition: (ir) => ir.intent === "casual",
+        model: "gemini",
+        reason: "Casual / greeting — Gemini"
+    },
+    // 15. Any + very long file
+    {
+        id: "long_file",
+        condition: (ir) => ir.hasFile && ir.complexity === "high",
+        model: "claude-opus",
+        reason: "Very long file context — Claude Opus"
+    }
 ];
 
 /* =========================================================
    FAILOVER CHAIN
 ========================================================= */
 const FAILOVER_CHAIN = {
-    gemini     : ["openrouter", "groq"],
-    openrouter : ["gemini", "groq"],
-    groq       : ["gemini", "openrouter"],
-    search     : ["gemini", "openrouter"],
+    "gemini": ["claude-sonnet"],
+    "claude-sonnet": ["gemini"],
+    "claude-opus": ["claude-sonnet", "gemini"],
+    "search": ["gemini"],
 };
 
 /* =========================================================
    PUBLIC API
 ========================================================= */
 
-/**
- * selectModel(query, context?, mode?) → RouterDecision
- *
- * @param {string} query
- * @param {Object} context — session context (Phase 3+ memory)
- * @param {string} mode    — "auto" | "gemini" | "openrouter" | "groq"
- * @returns {RouterDecision}
- */
 export function selectModel(query, context = {}, mode = "auto") {
     const intentResult = detectIntent(query);
 
     for (const rule of ROUTING_RULES) {
-        const matchesIntent   = !rule.intents || rule.intents.includes(intentResult.intent);
-        const passesCondition = !rule.condition || rule.condition(intentResult, context, mode);
-
-        if (!matchesIntent || !passesCondition) continue;
+        if (!rule.condition(intentResult, context, mode)) continue;
 
         const modelId = typeof rule.model === "function"
             ? rule.model(intentResult, context, mode)
@@ -193,41 +173,28 @@ export function selectModel(query, context = {}, mode = "auto") {
             ? rule.reason(intentResult, context, mode)
             : rule.reason;
 
-        if (!MODEL_REGISTRY[modelId]) {
-            console.warn(`[AI ROUTER] Unknown model "${modelId}" in rule "${rule.id}" — fallback gemini`);
-            return _build("gemini", intentResult, `Fallback: unknown model in rule ${rule.id}`);
-        }
-
         return _build(modelId, intentResult, reason);
     }
 
-    // Default
-    return _build("gemini", intentResult, "Default — no intent rule matched");
+    // 16. Default
+    return _build("gemini", intentResult, "Default — nothing matched");
 }
 
-/**
- * selectModelId(query, mode?) → string
- * Backward-compatible shim returning just the model id.
- * Maps "search" → "gemini" (search data already injected in controller).
- */
 export function selectModelId(query, mode = "auto") {
     const d = selectModel(query, {}, mode);
     return d.model === "search" ? "gemini" : d.model;
 }
 
-/* =========================================================
-   PRIVATE
-========================================================= */
 function _build(modelId, intentResult, reason) {
     const m = MODEL_REGISTRY[modelId] || MODEL_REGISTRY.gemini;
     return {
-        model       : m.id,
-        displayName : m.displayName,
+        model: m.id,
+        displayName: m.displayName,
         reason,
-        intent      : intentResult.intent,
-        confidence  : intentResult.confidence,
-        signals     : intentResult.signals,
-        failover    : FAILOVER_CHAIN[m.id] || ["gemini"],
-        needsSearch : m.id === "search",
+        intent: intentResult.intent,
+        confidence: intentResult.confidence,
+        complexity: intentResult.complexity,
+        failover: FAILOVER_CHAIN[m.id] || ["gemini"],
+        needsSearch: intentResult.needsSearch || m.id === "search",
     };
 }

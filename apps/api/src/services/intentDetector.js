@@ -1,199 +1,130 @@
 /**
- * intentDetector.js  — Phase 3 Fix
+ * intentDetector.js
  * ---------------------------------------------------------
- * Adds "creative" and "news" intent buckets.
- * Fixes weight ordering so news/creative win over generic explain.
+ * ChatFlow — Claude × Gemini Architecture
+ * Implements 10 intent buckets + Complexity Scoring
  * ---------------------------------------------------------
  */
 
 const INTENT_MAP = [
     {
-        intent  : "coding",
-        weight  : 10,
-        keywords: [
-            "code", "debug", "fix", "error", "bug", "function", "class",
-            "variable", "compile", "build", "deploy", "git", "loop", "array",
-            "object", "api", "endpoint", "database", "query", "syntax",
-            "algorithm", "script", "program", "implement", "refactor",
-            "typescript", "javascript", "python", "java", "golang", "rust",
-            "html", "css", "react", "node", "express", "sql", "bash", "shell",
-        ],
-        patterns: [
-            /```[\s\S]*```/,
-            /\b(def |const |let |var |function |import |export )/,
-            /\b(npm|pip|yarn|cargo)\b/i,
-            /TypeError|SyntaxError|ReferenceError/,
-        ],
+        intent: "deep_research",
+        weight: 10,
+        keywords: ["research", "investigate", "thesis", "literature review", "academic", "study"],
+        patterns: [/\b(deep dive into|comprehensive analysis of)\b/i]
     },
     {
-        intent  : "analysis",
-        weight  : 9,
-        keywords: [
-            "analyze", "analysis", "compare", "contrast", "evaluate", "assess",
-            "architecture", "design", "diagram", "trade-off", "pros and cons",
-            "difference between", "which is better", "performance",
-            "scalability", "security", "deep dive", "breakdown",
-        ],
-        patterns: [
-            /\b(pros|cons)\b/i,
-            /compare\s+\w+\s+(vs?\.?|and|with)\s+\w+/i,
-        ],
+        intent: "coding",
+        weight: 10,
+        keywords: ["code", "debug", "fix", "function", "algorithm", "compile", "syntax error", "refactor", "javascript", "python", "react", "node"],
+        patterns: [/```[\s\S]*```/, /TypeError|SyntaxError|ReferenceError/]
     },
-
-    // ── NEW: News / Real-time (high weight so it beats generic explain) ──
     {
-        intent  : "news",
-        weight  : 9,
-        keywords: [
-            "news", "latest", "breaking", "today", "this week", "this month",
-            "current events", "happening", "live update", "trending",
-            "headline", "report", "announcement", "press release",
-        ],
-        patterns: [
-            /\b(latest|breaking|live)\s+(news|update|report)/i,
-            /what('s|\s+is)\s+(happening|going on)/i,
-        ],
+        intent: "analysis",
+        weight: 9,
+        keywords: ["compare", "evaluate", "trade-off", "assess", "architecture", "pros and cons", "breakdown", "difference between"],
+        patterns: [/\b(pros|cons)\b/i, /compare\s+\w+\s+(vs?\.?|and|with)\s+\w+/i]
     },
-
     {
-        intent  : "factual",
-        weight  : 8,
-        keywords: [
-            "who is", "what is the", "when did", "price", "stock", "weather",
-            "president", "election", "result", "match", "score", "now",
-            "update", "recent", "real-time", "happened", "as of",
-            "what is the status",
-        ],
-        patterns: [
-            /\b(in \d{4}|as of|right now|at the moment)\b/i,
-            /current(ly)?\s+(running|available|price|version)/i,
-        ],
+        intent: "long_form_writing",
+        weight: 9,
+        keywords: ["write an essay", "draft", "article", "report", "whitepaper", "documentation", "blog post"],
+        patterns: [/write\s+(a\s+)?(long|detailed)\s+(article|essay|report)/i]
     },
-
     {
-        intent  : "summarize",
-        weight  : 8,
-        keywords: [
-            "summarize", "summary", "tldr", "shorten", "brief", "condense",
-            "key points", "main points", "highlight", "abstract", "overview",
-        ],
-        patterns: [
-            /\btl;?dr\b/i,
-            /in\s+(a\s+)?few\s+words/i,
-        ],
+        intent: "news_realtime",
+        weight: 9,
+        keywords: ["latest", "breaking", "today", "live update", "current events", "trending", "this week", "headline"],
+        patterns: [/\b(latest|breaking|live)\s+(news|update|report)/i]
     },
-
-    // ── NEW: Creative writing ──
     {
-        intent  : "creative",
-        weight  : 8,
-        keywords: [
-            "write a story", "write a poem", "write a song", "creative",
-            "fiction", "short story", "narrative", "poem", "lyrics",
-            "once upon a time", "imagine", "create a character",
-            "write me a", "make up a", "invent a", "compose a",
-            "screenplay", "dialogue", "plot", "protagonist", "villain",
-        ],
-        patterns: [
-            /write\s+(a|me\s+a|an)\s+(poem|story|song|tale|narrative|script)/i,
-            /\b(creative|fiction|imagin)/i,
-        ],
+        intent: "factual",
+        weight: 8,
+        keywords: ["who is", "when did", "price", "weather", "what is the status", "as of", "now", "current"],
+        patterns: [/\b(in \d{4}|as of|right now)\b/i]
     },
-
     {
-        intent  : "explain",
-        weight  : 7,
-        keywords: [
-            "explain", "what is", "how does", "what are", "why is", "why does",
-            "describe", "definition", "define", "meaning", "concept", "teach",
-            "how to", "tutorial", "guide", "walk me through", "step by step",
-        ],
-        patterns: [
-            /^(what|why|how|when|where|who)\s+/i,
-        ],
+        intent: "summarize",
+        weight: 8,
+        keywords: ["summarize", "tldr", "brief", "condense", "key points", "shorten", "overview", "abstract"],
+        patterns: [/\btl;?dr\b/i, /in\s+(a\s+)?few\s+words/i]
     },
-
     {
-        intent  : "casual",
-        weight  : 5,
-        keywords: [
-            "hi", "hello", "hey", "sup", "howdy", "yo", "good morning",
-            "good evening", "how are you", "what's up", "tell me a joke",
-            "thanks", "thank you", "cool", "nice", "great", "awesome", "lol",
-        ],
-        patterns: [
-            /^(hi|hello|hey|yo|sup)\b/i,
-        ],
+        intent: "creative",
+        weight: 8,
+        keywords: ["write a poem", "write a story", "write a song", "fiction", "imagine", "compose", "narrative", "lyrics"],
+        patterns: [/write\s+(a|me\s+a|an)\s+(poem|story|song|tale|narrative)/i]
     },
-
     {
-        intent  : "multilingual",
-        weight  : 6,
-        keywords: [
-            "eppadi", "enna", "vanakkam", "sollu", "puriyada",
-            "nanba", "thambi", "machan",
-        ],
-        patterns: [
-            /[\u0B80-\u0BFF]/,
-            /[\u0600-\u06FF]/,
-            /[\u4E00-\u9FFF]/,
-            /[\u0400-\u04FF]/,
-        ],
+        intent: "explain",
+        weight: 7,
+        keywords: ["what is", "how does", "define", "teach me", "step by step", "tutorial", "guide", "explain"],
+        patterns: [/^(what|why|how|when|where|who)\s+/i]
     },
+    {
+        intent: "casual",
+        weight: 5,
+        keywords: ["hi", "hello", "thanks", "lol", "how are you", "good morning", "jokes", "hey", "yo"],
+        patterns: [/^(hi|hello|hey|yo|sup)\b/i]
+    }
 ];
 
-/**
- * detectIntent(query) → IntentResult
- */
+function calculateComplexity(query) {
+    let score = 0;
+    
+    if (query.length > 500) score += 3;
+    else if (query.length > 200) score += 1;
+    
+    if (/```[\s\S]*```/.test(query) || /`[^`]+`/.test(query)) score += 3;
+    
+    if (/\b(and also|first.*second.*third|\d\.\s)\b/i.test(query)) score += 2;
+    if (/\b(then|after that|consequently)\b/i.test(query)) score += 2;
+    if (/\[Attached Files:.*?\]/i.test(query)) score += 2; // Rough file proxy
+
+    if (score >= 7) return "high";
+    if (score >= 4) return "medium";
+    return "low";
+}
+
 export function detectIntent(query) {
     if (!query || typeof query !== "string") {
-        return _build("casual", 20, ["empty-input"], query);
+        return _build("casual", 20, "low", query);
     }
 
-    const text    = query.toLowerCase();
-    const scores  = {};
-    const signals = {};
+    const text = query.toLowerCase();
+    const scores = {};
 
     for (const def of INTENT_MAP) {
         let score = 0;
-        const triggered = [];
-
         for (const kw of def.keywords) {
-            if (text.includes(kw)) {
-                score += def.weight;
-                triggered.push(`kw:"${kw}"`);
-            }
+            if (text.includes(kw)) score += def.weight;
         }
         for (const pattern of def.patterns) {
-            if (pattern.test(query)) {
-                score += def.weight * 1.5;
-                triggered.push(`pat:${pattern.source.slice(0, 20)}`);
-            }
+            if (pattern.test(query)) score += def.weight * 1.5;
         }
-
-        if (score > 0) {
-            scores[def.intent]  = (scores[def.intent]  || 0) + score;
-            signals[def.intent] = (signals[def.intent] || []).concat(triggered);
-        }
+        if (score > 0) scores[def.intent] = (scores[def.intent] || 0) + score;
     }
 
     const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-    if (!sorted[0]) return _build("casual", 30, ["no-signals"], query);
+    if (!sorted[0]) return _build("casual", 30, calculateComplexity(query), query);
 
     const [winnerIntent, winnerScore] = sorted[0];
     const maxPossible = Math.max(...INTENT_MAP.map(d => d.weight)) * 10;
-    const confidence  = Math.min(100, Math.round((winnerScore / maxPossible) * 100));
+    const confidence = Math.min(100, Math.round((winnerScore / maxPossible) * 100));
+    
+    const complexity = calculateComplexity(query);
 
-    return _build(winnerIntent, confidence, signals[winnerIntent] || [], query);
+    return _build(winnerIntent, confidence, complexity, query);
 }
 
-function _build(intent, confidence, signals, query = "") {
+function _build(intent, confidence, complexity, query = "") {
     return {
         intent,
         confidence,
-        signals,
-        isLong         : query.length > 300,
-        hasCode        : /```[\s\S]*```/.test(query) || /`[^`]+`/.test(query),
-        isMultilingual : /[\u0B80-\u0BFF\u0600-\u06FF\u4E00-\u9FFF\u0400-\u04FF]/.test(query),
+        complexity,
+        isLong: query.length > 300,
+        hasFile: /\[Attached Files:.*?\]/i.test(query),
+        isMultilingual: /[\u0B80-\u0BFF\u0600-\u06FF\u4E00-\u9FFF\u0400-\u04FF]/.test(query),
+        needsSearch: intent === "news_realtime" || intent === "factual",
     };
 }
