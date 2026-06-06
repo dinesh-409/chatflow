@@ -202,8 +202,8 @@ export function mergeResults(...arrays) {
     merged.sort((a, b) => b._score - a._score);
 
     // Return clean objects (spread picks only enumerable keys)
-    return merged.slice(0, MAX_TOTAL).map(({ title, snippet, url }) =>
-        ({ title, snippet, url })
+    return merged.slice(0, MAX_TOTAL).map(({ title, snippet, url, source }) =>
+        ({ title, snippet, url, source })
     );
 }
 

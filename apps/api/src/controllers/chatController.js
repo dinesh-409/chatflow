@@ -98,7 +98,6 @@ export const handleBasicChat = async (req, res) => {
         answer    : `[STUB] Will be handled by ${decision.displayName}. Connect Phase 4 streaming.`,
         model_used: decision.displayName,
         intent    : decision.intent,
-        mode      : responseMode,
         sources   : [],
     });
 };

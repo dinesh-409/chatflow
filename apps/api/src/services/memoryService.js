@@ -184,22 +184,19 @@ export const getGlobalMemory = async (currentSessionId, userId = "anonymous") =>
    CORE — injectMemoryToPrompt
 ========================================================= */
 export const injectMemoryToPrompt = async (basePrompt, sessionId, currentQuery = "", userId = "anonymous") => {
-    const [history, globalCtx] = await Promise.all([
-        getChatHistory(sessionId, 5),
-        getGlobalMemory(sessionId, userId)
-    ]); // Fetch local last 5 messages and cross-chat memory
+    // Fetch ONLY local last 5 messages as requested
+    const history = await getChatHistory(sessionId, 5);
     
     let contextSummary = "";
-    
-    if (globalCtx) {
-        contextSummary += `[Cross-Chat Memory]\n${globalCtx}\n\n`;
-    }
 
     if (history.length > 0) {
-        contextSummary += "Context:\n" + history.map(m => `- ${m.role}: ${m.text}`).join("\n");
+        contextSummary = history.map(m => {
+            const roleName = m.role === "user" ? "User" : "AI";
+            return `${roleName}: ${m.text}`;
+        }).join("\n");
     }
 
-    const enrichedPrompt = `${basePrompt}\n\n${contextSummary}`;
+    const enrichedPrompt = contextSummary ? `${basePrompt}\n\n${contextSummary}` : basePrompt;
 
     return { enrichedPrompt, contextSummary };
 };
