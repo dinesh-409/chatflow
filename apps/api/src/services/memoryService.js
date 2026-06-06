@@ -100,6 +100,24 @@ export const saveMessage = async (sessionId, role, text, opts = {}) => {
 export const addMessage = (sessionId, role, text, model = "auto") => saveMessage(sessionId, role, text, { model });
 
 /* =========================================================
+   CORE — truncateHistory
+========================================================= */
+export const truncateHistory = async (sessionId, keepCount) => {
+    if (keepCount == null || keepCount < 0) return;
+    
+    const memory = await Memory.findOne({ sessionId });
+    if (!memory || !memory.messages) return;
+
+    if (memory.messages.length > keepCount) {
+        memory.messages = memory.messages.slice(0, keepCount);
+        memory.messageCount = memory.messages.length;
+        await memory.save();
+    }
+    
+    _cacheDel(sessionId);
+};
+
+/* =========================================================
    CORE — getChatHistory
 ========================================================= */
 export const getChatHistory = async (sessionId, limit = 20) => {

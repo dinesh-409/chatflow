@@ -83,7 +83,7 @@ export default function Page() {
     setLoading(false);
   };
 
-  const streamMessage = async (msg: string) => {
+  const streamMessage = async (msg: string, truncateAfterIndex?: number) => {
     setLoading(true);
 
     const controller = new AbortController();
@@ -110,6 +110,7 @@ export default function Page() {
             sessionId:
               sessionIdRef.current,
             mode,
+            truncateAfterIndex,
           }),
         }
       );
@@ -243,9 +244,11 @@ export default function Page() {
     }
   };
 
-  const sendMessageFromEdit = async (msg: string) => {
+  const sendMessageFromEdit = async (msg: string, index: number) => {
     if (!msg.trim() || loading) return;
-    await streamMessage(msg);
+    
+    setChat(prev => prev.slice(0, index));
+    await streamMessage(msg, index);
   };
 
   const handleVoice = () => {
@@ -320,7 +323,7 @@ export default function Page() {
                       <button onClick={() => setEditingIndex(null)} className="px-3 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 rounded-lg text-white transition">Cancel</button>
                       <button onClick={() => {
                         setEditingIndex(null);
-                        sendMessageFromEdit(editText);
+                        sendMessageFromEdit(editText, i);
                       }} className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 rounded-lg text-white transition">Send</button>
                     </div>
                   </div>

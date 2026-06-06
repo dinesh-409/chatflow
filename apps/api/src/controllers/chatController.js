@@ -40,6 +40,7 @@ import {
     injectMemoryToPrompt,
     getMemory,
     getGlobalMemory,
+    truncateHistory,
 }                                                     from "../services/memoryService.js";
 import { createSession }                              from "../services/sessionService.js";
 import { parseFile, summarizeChunks }                 from "../services/fileService.js";
@@ -105,7 +106,7 @@ export const handleBasicChat = async (req, res) => {
    POST /api/chat-stream — SSE Full Pipeline
 ========================================================= */
 export const handleChatStream = async (req, res) => {
-    const { message, sessionId, mode = "auto" } = req.body;
+    const { message, sessionId, mode = "auto", truncateAfterIndex } = req.body;
     const userId = _userId(req);
 
     if (!message || !sessionId) {
@@ -120,6 +121,11 @@ export const handleChatStream = async (req, res) => {
         let modifiedMessage = message;
         let fileContext     = "";
         let searchSources   = [];   // clean array for response envelope
+
+        /* ── STEP 0: HISTORY TRUNCATION ───────────────────────── */
+        if (truncateAfterIndex !== undefined && truncateAfterIndex !== null) {
+            await truncateHistory(sessionId, truncateAfterIndex);
+        }
 
         /* ── STEP 1: AI ROUTER (run FIRST, drives all decisions) ──
            FIX: selectModel is called once, result used everywhere.
