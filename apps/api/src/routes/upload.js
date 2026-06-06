@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { handleUpload } from "../controllers/uploadController.js";
 
 const router = express.Router();
 
@@ -21,18 +22,6 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-router.post("/upload", upload.array("files"), (req, res) => {
-    try {
-        const files = req.files;
-        if (!files || files.length === 0) {
-            return res.status(400).json({ error: "No files uploaded" });
-        }
-        
-        const fileUrls = files.map(f => `/uploads/${f.filename}`);
-        res.json({ urls: fileUrls });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+router.post("/upload", upload.array("files"), handleUpload);
 
 export default router;

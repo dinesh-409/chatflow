@@ -10,6 +10,16 @@ import path from "path";
 
 dotenv.config();
 
+/* =====================
+   SETUP VALIDATION
+===================== */
+const requiredEnvVars = ["PORT"];
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+    console.warn(`⚠️ Warning: Missing recommended environment variables: ${missingEnvVars.join(', ')}`);
+}
+
 const app = express();
 
 /* =====================
@@ -70,6 +80,17 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.get("/", (req, res) => {
    res.status(200).send("🔥 ChatFlow Backend Running");
+});
+
+/* =====================
+   GLOBAL ERROR HANDLER
+===================== */
+app.use((err, req, res, next) => {
+   console.error("🔥 [Global Error]:", err.stack);
+   res.status(500).json({
+      success: false,
+      error: err.message || "Internal Server Error"
+   });
 });
 
 /* =====================

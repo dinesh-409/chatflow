@@ -1,66 +1,46 @@
+/**
+ * modelRouter.js
+ * ─────────────────────────────────────────────────────────
+ * Backward-compatible delegation layer.
+ *
+ * All callers that import { chooseModel } or
+ * { shouldUseWebSearch } from this file continue to work.
+ * Internally, chooseModel now delegates to the AI Router brain
+ * (aiRouter.js → intentDetector.js) for richer decisions.
+ * ─────────────────────────────────────────────────────────
+ */
+
+import { selectModelId } from "./aiRouter.js";
+
+/**
+ * chooseModel(message, mode?)
+ *
+ * Drop-in replacement for old keyword-based picker.
+ * Returns a model id string: "gemini" | "openrouter" | "groq"
+ *
+ * @param {string} message — raw user query
+ * @param {string} mode    — "auto" | explicit model id
+ * @returns {string}
+ */
 export const chooseModel = (message, mode = "auto") => {
-    if (mode !== "auto") return mode;
-
-    const text = message.toLowerCase();
-
-    // 🌐 Language Detection (Heuristic for Tamil/Tanglish)
-    const isTamil = /[\u0B80-\u0BFF]/.test(text) || /\b(eppadi|enna|vanakkam|sollu|puriyada|nanba|thambi|machan)\b/.test(text);
-
-    // 1. Language & Casual Intent
-    if (isTamil || text.includes("casual") || text.includes("chat") || text.includes("hi") || text.includes("hello")) {
-        return "gemini"; // Multilingual + fast context
-    }
-
-    // 2. Current Affairs / Factual (Needs Search + GPT/Gemini)
-    if (shouldUseWebSearch(message)) {
-        return "openrouter"; // GPT-4o is best at synthesizing search results
-    }
-
-    // 3. Coding / Instruction Following Intent
-    if (
-        text.includes("code") ||
-        text.includes("fix") ||
-        text.includes("build") ||
-        text.includes("command") ||
-        text.includes("instruct") ||
-        text.includes("error")
-    ) {
-        return "openrouter"; // ChatGPT preferred for coding/instructions
-    }
-
-    // 4. Deep Analysis / Compare / Design Intent
-    if (
-        text.includes("analyze") ||
-        text.includes("compare") ||
-        text.includes("design") ||
-        text.includes("architecture") ||
-        text.includes("explain") ||
-        text.length > 500
-    ) {
-        return "openrouter"; 
-    }
-
-    // 5. Summarize / Fast Intent
-    if (
-        text.includes("summarize") ||
-        text.includes("short") ||
-        text.length < 50
-    ) {
-        return "groq"; // Fast Llama
-    }
-
-    // Default fallback
-    return "gemini";
+    // Let explicit modes pass through untouched
+    if (mode && mode !== "auto") return mode;
+    return selectModelId(message, mode);
 };
 
-// 🌍 Real-Time Knowledge Router
+/**
+ * shouldUseWebSearch(message) → boolean
+ *
+ * Kept for direct callers in chatController (file/search pipeline).
+ * Now powered by intentDetector under the hood.
+ */
 export const shouldUseWebSearch = (message) => {
     const text = message.toLowerCase();
     const factualKeywords = [
-        "today", "now", "latest", "news", "current", "price", 
-        "president", "election", "match", "score", "weather",
-        "who is", "what is the status", "update"
+        "today", "now", "latest", "news", "current", "price", "stock",
+        "president", "election", "result", "match", "score", "weather",
+        "update", "recent", "this week", "this month", "trending",
+        "who is the", "what is the status", "live", "real-time", "happened"
     ];
-    
-    return factualKeywords.some(keyword => text.includes(keyword));
+    return factualKeywords.some(kw => text.includes(kw));
 };

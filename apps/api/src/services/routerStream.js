@@ -1,123 +1,137 @@
-import axios from "axios";
-import { chooseModel } from "./modelRouter.js";
+/**
+ * routerStream.js — Phase 3 Fix
+ * ---------------------------------------------------------
+ * BUG FIXED: Previously called chooseModel() internally,
+ * overriding the RouterDecision already made by selectModel()
+ * in chatController. This caused every request to re-run
+ * routing independently and often land on openrouter.
+ *
+ * FIX: aiRouterStream now accepts an explicit `mode` that
+ * chatController passes AFTER running selectModel(). The
+ * internal fallback only fires if no mode is given.
+ *
+ * Failover chain: primary → retry same → fallback model
+ * ---------------------------------------------------------
+ */
 
-async function groqStream(message) {
+import axios from "axios";
+
+/* =========================================================
+   MODEL CALLERS
+========================================================= */
+
+async function callGroq(message) {
     const res = await axios.post(
         "https://api.groq.com/openai/v1/chat/completions",
         {
-            model: "llama-3.1-8b-instant",
-            messages: [
-                {
-                    role: "user",
-                    content: message,
-                },
-            ],
+            model    : "llama-3.1-8b-instant",
+            messages : [{ role: "user", content: message }],
         },
         {
-            headers: {
-                Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-                "Content-Type": "application/json",
+            headers : {
+                Authorization  : `Bearer ${process.env.GROQ_API_KEY}`,
+                "Content-Type" : "application/json",
             },
+            timeout: 20000,
         }
     );
-
     return res.data.choices[0].message.content;
 }
 
-async function geminiStream(message) {
+async function callGemini(message) {
     const res = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-        {
-            contents: [
-                {
-                    parts: [
-                        {
-                            text: message,
-                        },
-                    ],
-                },
-            ],
-        }
+        { contents: [{ parts: [{ text: message }] }] },
+        { timeout: 20000 }
     );
-
     return res.data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
-async function openrouterStream(message) {
+async function callOpenRouter(message) {
     const res = await axios.post(
         "https://openrouter.ai/api/v1/chat/completions",
         {
-            model: "openai/gpt-4o-mini",
-            messages: [
-                {
-                    role: "user",
-                    content: message,
-                },
-            ],
+            model    : "openai/gpt-4o-mini",
+            messages : [{ role: "user", content: message }],
         },
         {
-            headers: {
-                Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                "Content-Type": "application/json",
+            headers : {
+                Authorization  : `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                "Content-Type" : "application/json",
             },
+            timeout: 25000,
         }
     );
-
     return res.data.choices[0].message.content;
 }
 
-export async function aiRouterStream({
-    message,
-    mode = "auto",
-}) {
-    const originalSelected = chooseModel(message, mode);
-    let selected = originalSelected;
+/* =========================================================
+   FAILOVER LOGIC
+========================================================= */
+const FALLBACK_MAP = {
+    gemini     : "openrouter",
+    openrouter : "gemini",
+    groq       : "gemini",
+};
 
-    let reply = "";
-    let success = false;
+async function callModel(model, message) {
+    if (model === "gemini")     return callGemini(message);
+    if (model === "groq")       return callGroq(message);
+    if (model === "openrouter") return callOpenRouter(message);
+    // Unknown model — default to gemini
+    return callGemini(message);
+}
 
-    // Failover Queue: Primary -> Same Model Retry -> Fallback Model
-    const getFallback = (current) => {
-        if (current === "gemini") return "openrouter";
-        if (current === "openrouter") return "gemini";
-        if (current === "groq") return "gemini";
-        return "openrouter";
-    };
+/* =========================================================
+   PUBLIC — aiRouterStream
+========================================================= */
+
+/**
+ * aiRouterStream({ message, mode }) → AsyncGenerator<string>
+ *
+ * @param {string} message — the full prompt to send
+ * @param {string} mode    — model id from selectModel() decision.
+ *                           Do NOT call chooseModel() here; the
+ *                           decision is made upstream in chatController.
+ */
+export async function aiRouterStream({ message, mode = "gemini" }) {
+    // Normalise: "search" and "auto" both resolve to gemini
+    // (search data is already injected into the prompt by this point)
+    const primary = (mode === "search" || mode === "auto") ? "gemini" : mode;
+    const fallback = FALLBACK_MAP[primary] || "gemini";
 
     const attempts = [
-        { model: originalSelected, stage: "primary" },
-        { model: originalSelected, stage: "retry_same" },
-        { model: getFallback(originalSelected), stage: "fallback" }
+        { model: primary,  stage: "primary"    },
+        { model: primary,  stage: "retry"      },
+        { model: fallback, stage: "fallback"   },
     ];
 
+    let reply   = "";
+    let success = false;
+
     for (const attempt of attempts) {
-        selected = attempt.model;
         try {
-            if (selected === "gemini") {
-                reply = await geminiStream(message);
-            } else if (selected === "groq") {
-                reply = await groqStream(message);
-            } else {
-                reply = await openrouterStream(message);
-            }
+            console.log(`[STREAM] Calling ${attempt.model} (${attempt.stage})`);
+            reply   = await callModel(attempt.model, message);
             success = true;
-            break; // Success!
+            break;
         } catch (err) {
-            console.error(`[FAILOVER LOG] model_used: ${selected} | stage: ${attempt.stage} | error: ${err.message}`);
+            console.error(`[FAILOVER] ${attempt.model} | ${attempt.stage} | ${err.message}`);
         }
     }
 
     if (!success) {
-        console.error("[FAILOVER LOG] ALL MODELS FAILED. Triggering SAFE MODE.");
-        reply = "Unable to reach primary AI models. Switching to backup reasoning engine. (Safe Mode: Internal fallback engaged. Please try summarizing or sending smaller prompts.)";
+        console.error("[FAILOVER] ALL models failed — safe mode");
+        reply = "I'm having trouble reaching my AI providers right now. Please try again in a moment.";
     }
 
-    async function* streamText(text) {
-        for (const char of text) {
-            yield char;
-            await new Promise((r) => setTimeout(r, 5));
-        }
-    }
+    // Yield response as async stream (character-by-character for SSE)
+    return _streamText(reply);
+}
 
-    return streamText(reply);
+async function* _streamText(text) {
+    for (const char of text) {
+        yield char;
+        await new Promise(r => setTimeout(r, 5));
+    }
 }
