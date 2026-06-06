@@ -45,7 +45,7 @@ export function getModePromptInstructions(mode) {
     switch (mode) {
         case "clean_summary":
             return `${universalRule}
-MODE: clean_summary. EXPLAIN CONCEPTS CLEARLY AND ELABORATELY. Break down the answer into highly structured paragraphs and bullet points. Use emojis and distinct headings to categorize information. DO NOT provide brief or one-liner responses. DO NOT include any links, URLs, or citations in your output.`;
+MODE: clean_summary. ADAPT YOUR RESPONSE LENGTH. For simple questions, be concise and direct. For complex topics, explain clearly and elaborately using structured paragraphs and bullet points. DO NOT include any links, URLs, or citations in your output.`;
         
         case "detailed_with_sources":
             return `${universalRule}
