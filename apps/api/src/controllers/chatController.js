@@ -195,25 +195,12 @@ export const handleChatStream = async (req, res) => {
             SYSTEM_PROMPT, sessionId, message, userId
         );
 
-        /* ── STEP 6: ASSEMBLE PROMPT ──────────────────────────── */
+        /* ── STEP 7: ASSEMBLE PROMPT ──────────────────────────── */
         const modeInstructions = getModePromptInstructions(responseMode);
         const finalPrompt = `${enrichedPrompt}\n\n${modeInstructions}\n\nUser:\n${modifiedMessage}`;
 
-        /* ── STEP 7: EMIT META SSE EVENT ──────────────────────── */
-        const emitSources = responseMode === "clean_summary" ? [] : searchSources;
-
-        // Meta event carries the consistent response envelope header
-        res.write(`data: ${JSON.stringify({
-            type      : "meta",
-            model_used: _nameOf(streamMode),
-            intent    : decision.intent,
-            mode      : responseMode,
-            confidence: decision.confidence,
-            reason    : decision.reason,
-            hasSearch : searchSources.length > 0,
-            hasFile   : !!fileContext,
-            sources   : emitSources,   // clean array, no score/image fields
-        })}\n\n`);
+        // (Metadata is no longer sent via SSE stream to prevent leakage.
+        // It is saved to the DB below and can be fetched via standard JSON API)
 
         /* ── STEP 8: STREAM AI RESPONSE ───────────────────────── */
         // FIX: pass streamMode (the actual model id), NOT "auto"
@@ -232,14 +219,8 @@ export const handleChatStream = async (req, res) => {
 
         /* ── STEP 9: DONE EVENT ───────────────────────────────── */
         if (!aborted) {
-            // Final event carries complete response envelope
-            res.write(`data: ${JSON.stringify({
-                type      : "done",
-                model_used: _nameOf(streamMode),
-                intent    : decision.intent,
-                mode      : responseMode,
-                sources   : emitSources,
-            })}\n\n`);
+            // Strictly clean done event, no metadata
+            res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
             res.write("data: [DONE]\n\n");
         }
 
