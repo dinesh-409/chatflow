@@ -20,6 +20,8 @@ export default function Page() {
   const [isListening, setIsListening] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [messageQueue, setMessageQueue] = useState<string[]>([]);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editText, setEditText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const chatRef = useRef<HTMLDivElement>(null);
@@ -241,6 +243,11 @@ export default function Page() {
     }
   };
 
+  const sendMessageFromEdit = async (msg: string) => {
+    if (!msg.trim() || loading) return;
+    await streamMessage(msg);
+  };
+
   const handleVoice = () => {
     if (!('webkitSpeechRecognition' in window)) {
         alert("Voice input not supported in this browser.");
@@ -300,21 +307,61 @@ export default function Page() {
             </div>
           ) : (
             chat.map((c, i) => (
-              <div key={i} className="flex flex-col">
-                <div
-                  className={`max-w-[80%] p-4 rounded-2xl ${c.role === "user"
-                      ? "ml-auto bg-[#383838] text-white"
-                      : "bg-transparent text-gray-100 prose prose-invert max-w-none"
-                    }`}
-                >
-                  {c.role === "ai" ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {c.text}
-                      </ReactMarkdown>
-                  ) : (
-                      c.text
-                  )}
-                </div>
+              <div key={i} className={`flex flex-col group relative ${c.role === 'user' ? 'items-end' : 'items-start'}`}>
+                {c.role === "user" && editingIndex === i ? (
+                  <div className="w-full max-w-[80%] bg-[#2f2f2f] p-3 rounded-2xl border border-gray-700">
+                    <textarea 
+                      className="w-full bg-transparent text-white focus:outline-none resize-none"
+                      rows={3}
+                      value={editText}
+                      onChange={e => setEditText(e.target.value)}
+                    />
+                    <div className="flex justify-end gap-2 mt-2">
+                      <button onClick={() => setEditingIndex(null)} className="px-3 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 rounded-lg text-white transition">Cancel</button>
+                      <button onClick={() => {
+                        setEditingIndex(null);
+                        sendMessageFromEdit(editText);
+                      }} className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 rounded-lg text-white transition">Send</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      className={`max-w-[80%] p-4 rounded-2xl ${c.role === "user"
+                          ? "bg-[#383838] text-white"
+                          : "bg-transparent text-gray-100 prose prose-invert max-w-none"
+                        }`}
+                    >
+                      {c.role === "ai" ? (
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {c.text}
+                          </ReactMarkdown>
+                      ) : (
+                          c.text
+                      )}
+                    </div>
+
+                    {c.role === "user" && (
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 mt-1 mr-2 text-gray-400">
+                        <button 
+                          onClick={() => navigator.clipboard.writeText(c.text)} 
+                          className="p-1 hover:text-white hover:bg-gray-700 rounded transition"
+                          title="Copy"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        </button>
+                        <button 
+                          onClick={() => { setEditingIndex(i); setEditText(c.text); }} 
+                          className="p-1 hover:text-white hover:bg-gray-700 rounded transition"
+                          title="Edit"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+
                 {c.role === "ai" && activeModel && i === chat.length - 1 && (
                   <div className="text-xs text-gray-500 mt-2 ml-2 flex items-center gap-1.5 font-medium">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
