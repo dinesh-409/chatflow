@@ -1,9 +1,9 @@
 import Session from "../models/Session.js";
 
-export const createSession = async (sessionId) => {
+export const createSession = async (sessionId, userId) => {
     const exists = await Session.findOneAndUpdate(
-        { sessionId },
-        { $setOnInsert: { sessionId, title: "New Chat" } },
+        { sessionId, userId },
+        { $setOnInsert: { sessionId, userId, title: "New Chat" } },
         { new: true, upsert: true }
     );
 

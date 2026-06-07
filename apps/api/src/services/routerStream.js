@@ -83,18 +83,72 @@ async function callModel(model, message) {
 }
 
 /* =========================================================
+   REFLECTION LAYER & QUALITY SCORING
+========================================================= */
+async function applyReflection(originalMessage, draftResponse, model) {
+    const reflectionPrompt = `
+You are an expert AI Quality Assurance Auditor.
+Review the following DRAFT RESPONSE to the USER QUERY.
+
+USER QUERY:
+${originalMessage}
+
+DRAFT RESPONSE:
+${draftResponse}
+
+Evaluate the draft on 4 criteria (out of 10):
+1. Completeness: Does it fully answer the prompt without leaving out critical requested information?
+2. Relevance: Is it strictly focused on the user's core intent?
+3. Clarity & Tone: Is the formatting excellent? PENALIZE generic AI phrasing (e.g., "As an AI...", "It's important to remember...", "In conclusion"). Be direct and human-like.
+4. Factuality: Are there zero hallucinations?
+
+Then, calculate the "averageScore".
+If the averageScore is >= 8.5, set "needsRewrite" to false and leave "fixedResponse" empty.
+If the averageScore is < 8.5, set "needsRewrite" to true and provide the fully improved response in "fixedResponse".
+
+Respond STRICTLY in JSON format with no markdown wrappers or additional text:
+{
+  "completeness": number,
+  "relevance": number,
+  "clarity": number,
+  "factuality": number,
+  "averageScore": number,
+  "needsRewrite": boolean,
+  "fixedResponse": "string"
+}
+`;
+    console.log(`[REFLECTION] Running quality score on ${model}...`);
+    try {
+        const rawRes = await callModel(model, reflectionPrompt);
+        const cleanJson = rawRes.replace(/```json/g, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleanJson);
+        
+        console.log(`[REFLECTION] Quality Score: ${parsed.averageScore}/10. Needs Rewrite: ${parsed.needsRewrite}`);
+        
+        if (parsed.needsRewrite && parsed.fixedResponse) {
+            return parsed.fixedResponse;
+        }
+        return draftResponse;
+    } catch (err) {
+        console.error(`[REFLECTION] Scoring failed or JSON parse error. ${err.message}`);
+        return draftResponse;
+    }
+}
+
+/* =========================================================
    PUBLIC — aiRouterStream
 ========================================================= */
 
 /**
- * aiRouterStream({ message, mode }) → AsyncGenerator<string>
+ * aiRouterStream({ message, mode, complexity }) → AsyncGenerator<string>
  *
  * @param {string} message — the full prompt to send
  * @param {string} mode    — model id from selectModel() decision.
  *                           Do NOT call chooseModel() here; the
  *                           decision is made upstream in chatController.
+ * @param {string} complexity — "low" | "medium" | "high"
  */
-export async function aiRouterStream({ message, mode = "gemini" }) {
+export async function aiRouterStream({ message, mode = "gemini", complexity = "low" }) {
     // Normalise: "search" and "auto" both resolve to gemini
     // (search data is already injected into the prompt by this point)
     const primary = (mode === "search" || mode === "auto") ? "gemini" : mode;
@@ -108,12 +162,14 @@ export async function aiRouterStream({ message, mode = "gemini" }) {
 
     let reply   = "";
     let success = false;
+    let successfulModel = primary;
 
     for (const attempt of attempts) {
         try {
             console.log(`[STREAM] Calling ${attempt.model} (${attempt.stage})`);
             reply   = await callModel(attempt.model, message);
             success = true;
+            successfulModel = attempt.model;
             break;
         } catch (err) {
             console.error(`[FAILOVER] ${attempt.model} | ${attempt.stage} | ${err.message}`);
@@ -123,6 +179,12 @@ export async function aiRouterStream({ message, mode = "gemini" }) {
     if (!success) {
         console.error("[FAILOVER] ALL models failed — safe mode");
         reply = "I'm having trouble reaching my AI providers right now. Please try again in a moment.";
+        return _streamText(reply);
+    }
+
+    // --- REFLECTION LAYER ---
+    if (complexity === "high") {
+        reply = await applyReflection(message, reply, successfulModel);
     }
 
     // Yield response as async stream (character-by-character for SSE)

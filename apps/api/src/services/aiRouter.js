@@ -52,61 +52,61 @@ const ROUTING_RULES = [
         model: "gemini",
         reason: "Non-Latin script detected — Gemini handles most languages"
     },
-    // 03. News / real-time
+    // 03. Follow-up + High Complexity
     {
-        id: "news",
-        condition: (ir) => ir.intent === "news_realtime",
-        model: "search",
-        reason: "News / real-time intent detected — Search → Gemini synthesis"
-    },
-    // 04. Factual lookup
-    {
-        id: "factual",
-        condition: (ir) => ir.intent === "factual",
-        model: "search",
-        reason: "Factual lookup intent detected — Search → Gemini synthesis"
-    },
-    // 05. Deep research + high complexity
-    {
-        id: "deep_research-high",
-        condition: (ir) => ir.intent === "deep_research" && ir.complexity === "high",
+        id: "followup-high",
+        condition: (ir) => ir.isFollowUp && ir.complexity === "high",
         model: "openrouter",
-        reason: "Deep research + high complexity — OpenRouter GPT-4o"
+        reason: "Complex follow-up — needs deep reasoning over context"
     },
-    // 06. Deep research + medium/low complexity
+    // 04. Follow-up (Normal)
     {
-        id: "deep_research-med_low",
-        condition: (ir) => ir.intent === "deep_research" && ir.complexity !== "high",
-        model: "groq",
-        reason: "Deep research + medium/low complexity — Groq Llama 3.1"
+        id: "followup-normal",
+        condition: (ir) => ir.isFollowUp,
+        model: "gemini",
+        reason: "Follow-up question — Gemini excels at huge context windows"
     },
-    // 07. Coding — complex
+    // 05. Research
+    {
+        id: "research",
+        condition: (ir) => ir.intent === "research",
+        model: "search",
+        reason: "Research intent detected — Search → Gemini synthesis"
+    },
+    // 06. Planning + high complexity
+    {
+        id: "planning-high",
+        condition: (ir) => ir.intent === "planning" && ir.complexity === "high",
+        model: "openrouter",
+        reason: "Planning + high complexity — OpenRouter GPT-4o"
+    },
+    // 07. Planning + medium/low complexity
+    {
+        id: "planning-med_low",
+        condition: (ir) => ir.intent === "planning" && ir.complexity !== "high",
+        model: "groq",
+        reason: "Planning + medium/low complexity — Groq Llama 3.1"
+    },
+    // 08. Coding — complex
     {
         id: "coding-high",
         condition: (ir) => ir.intent === "coding" && ir.complexity === "high",
         model: "openrouter",
         reason: "Coding + high complexity — OpenRouter GPT-4o"
     },
-    // 08. Coding — simple
+    // 09. Coding — simple
     {
         id: "coding-med_low",
         condition: (ir) => ir.intent === "coding" && ir.complexity !== "high",
         model: "groq",
         reason: "Coding + medium/low complexity — Groq Llama 3.1"
     },
-    // 09. Analysis / compare
+    // 10. Comparison
     {
-        id: "analysis",
-        condition: (ir) => ir.intent === "analysis",
+        id: "comparison",
+        condition: (ir) => ir.intent === "comparison",
         model: "groq",
-        reason: "Analysis / compare — Groq Llama 3.1"
-    },
-    // 10. Long-form writing
-    {
-        id: "long_form_writing",
-        condition: (ir) => ir.intent === "long_form_writing",
-        model: "groq",
-        reason: "Long-form writing — Groq Llama 3.1"
+        reason: "Comparison / Analysis — Groq Llama 3.1"
     },
     // 11. Creative writing
     {
@@ -115,28 +115,21 @@ const ROUTING_RULES = [
         model: "groq",
         reason: "Creative writing — Groq Llama 3.1"
     },
-    // 12. Summarisation
+    // 12. Educational / explain
     {
-        id: "summarize",
-        condition: (ir) => ir.intent === "summarize",
+        id: "educational",
+        condition: (ir) => ir.intent === "educational",
         model: "gemini",
-        reason: "Summarisation — Gemini for speed priority"
+        reason: "Educational / explain — Gemini"
     },
-    // 13. Explanation / how-to
+    // 13. Simple / casual
     {
-        id: "explain",
-        condition: (ir) => ir.intent === "explain",
+        id: "simple",
+        condition: (ir) => ir.intent === "simple",
         model: "gemini",
-        reason: "Explanation / how-to — Gemini"
+        reason: "Simple / casual — Gemini"
     },
-    // 14. Casual / greeting
-    {
-        id: "casual",
-        condition: (ir) => ir.intent === "casual",
-        model: "gemini",
-        reason: "Casual / greeting — Gemini"
-    },
-    // 15. Any + very long file
+    // 14. Any + very long file
     {
         id: "long_file",
         condition: (ir) => ir.hasFile && ir.complexity === "high",
@@ -192,8 +185,11 @@ function _build(modelId, intentResult, reason) {
         displayName: m.displayName,
         reason,
         intent: intentResult.intent,
+        responseType: intentResult.responseType,
         confidence: intentResult.confidence,
         complexity: intentResult.complexity,
+        isFollowUp: intentResult.isFollowUp,
+        isLiveQuery: intentResult.isLiveQuery,
         failover: FAILOVER_CHAIN[m.id] || ["gemini"],
         needsSearch: intentResult.needsSearch || m.id === "search",
     };

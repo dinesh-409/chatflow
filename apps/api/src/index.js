@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 import { connectDB } from "./db/mongo.js";
+import authRoutes from "./routes/auth.js";
 import chatRoutes from "./routes/chat.js";
 import sessionRoutes from "./routes/session.js";
 import uploadRoutes from "./routes/upload.js";
@@ -59,15 +60,18 @@ app.use(
 app.use(express.json());
 
 /* =====================
-   DATABASE
+   DATABASE & VECTOR DB
 ===================== */
 
 connectDB();
+import { initPinecone } from "./config/pinecone.js";
+initPinecone();
 
 /* =====================
    ROUTES
 ===================== */
 
+app.use("/api/auth", authRoutes);
 app.use("/api", chatRoutes);
 app.use("/api", sessionRoutes);
 app.use("/api", uploadRoutes);

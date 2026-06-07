@@ -181,19 +181,34 @@ async function _duckduckgo(query) {
 ========================================================= */
 
 /**
- * mergeResults(...arrays) → CleanResult[]
+ * mergeResults(query, ...arrays) → CleanResult[]
  *
- * Deduplicates by URL, sorts by _score (hidden field), caps at MAX_TOTAL.
+ * Deduplicates by URL, ranks by Token Overlap Score + Base Score, caps at MAX_TOTAL.
  * Output objects contain ONLY { title, snippet, url, source }.
  */
-export function mergeResults(...arrays) {
+export function mergeResults(query, ...arrays) {
     const seen   = new Set();
     const merged = [];
+
+    // Extract core query tokens for semantic relevance scoring
+    const queryTokens = new Set((query || "").toLowerCase().match(/[a-z0-9]+/g) || []);
 
     for (const arr of arrays) {
         for (const item of arr) {
             if (!item.url || seen.has(item.url)) continue;
             seen.add(item.url);
+
+            // SEARCH RELEVANCE RANKING
+            // Calculate semantic overlap between query keywords and the result content
+            let overlap = 0;
+            const contentTokens = (item.title + " " + item.snippet).toLowerCase().match(/[a-z0-9]+/g) || [];
+            for (const token of contentTokens) {
+                if (queryTokens.has(token)) overlap += 0.2; // boost per matching token
+            }
+            
+            // Re-weight: base source score + semantic overlap
+            item._score += Math.min(overlap, 5.0); // Cap the semantic boost at +5.0
+
             merged.push(item);
         }
     }
@@ -242,7 +257,7 @@ export async function searchWeb(query) {
         _duckduckgo(query),
     ]);
 
-    const results   = mergeResults(tavilyRes, wikiRes, ddgRes);
+    const results   = mergeResults(query, tavilyRes, wikiRes, ddgRes);
     const formatted = formatForPrompt(results);
 
     console.log(

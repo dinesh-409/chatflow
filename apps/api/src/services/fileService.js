@@ -27,6 +27,8 @@ const pdfParse      = require("pdf-parse");
 const WordExtractor  = require("word-extractor");
 const mammoth        = require("mammoth");
 const PDFParser      = require("pdf2json");
+const xlsx           = require("xlsx");
+const tesseract      = require("tesseract.js");
 
 /* =========================================================
    CONSTANTS
@@ -90,8 +92,31 @@ export async function extractText(filePath, ext) {
             return result.value;
         }
 
+        case ".xlsx":
+        case ".xls": {
+            const workbook = xlsx.readFile(filePath);
+            let combinedText = "";
+            for (const sheetName of workbook.SheetNames) {
+                const sheet = workbook.Sheets[sheetName];
+                const csv = xlsx.utils.sheet_to_csv(sheet);
+                combinedText += `\n--- Sheet: ${sheetName} ---\n${csv}`;
+            }
+            return combinedText;
+        }
+
+        case ".png":
+        case ".jpg":
+        case ".jpeg": {
+            console.log(`[FILE SERVICE] Running OCR on ${filePath}`);
+            const { data: { text } } = await tesseract.recognize(filePath, "eng", { logger: m => {} });
+            return text;
+        }
+
+        case ".js": case ".ts": case ".py": case ".java": case ".cpp": case ".c": case ".cs": case ".html": case ".css": case ".php": case ".rb": case ".go": case ".rs":
+            return `--- Code File: ${path.basename(filePath)} ---\n\n${fs.readFileSync(filePath, "utf-8")}`;
+
         default:
-            return `[SYSTEM: Unsupported file type "${ext}". Please upload PDF, DOCX, DOC, TXT, MD, JSON, or CSV.]`;
+            return `[SYSTEM: Unsupported file type "${ext}". Please upload PDF, DOCX, DOC, TXT, MD, JSON, CSV, XLSX, Image, or Code files.]`;
     }
 }
 

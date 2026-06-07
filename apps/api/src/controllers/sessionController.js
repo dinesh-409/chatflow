@@ -6,7 +6,7 @@ import Memory from "../models/Memory.js";
 ========================= */
 export const getAllSessions = async (req, res) => {
     try {
-        const sessions = await Session.find({})
+        const sessions = await Session.find({ userId: req.user.id })
             .sort({ isPinned: -1, updatedAt: -1, createdAt: -1 });
             
         // Filter out empty "New Chat" sessions dynamically
@@ -38,6 +38,9 @@ export const getAllSessions = async (req, res) => {
 ========================= */
 export const getSession = async (req, res) => {
     try {
+        const session = await Session.findOne({ sessionId: req.params.id, userId: req.user.id });
+        if (!session) return res.status(404).json({ error: "Session not found" });
+
         const memory = await Memory.findOne({
             sessionId: req.params.id,
         });
@@ -71,7 +74,7 @@ export const updateSession = async (req, res) => {
         if (isArchived !== undefined) updateData.isArchived = isArchived;
         
         const session = await Session.findOneAndUpdate(
-            { sessionId: req.params.id },
+            { sessionId: req.params.id, userId: req.user.id },
             { $set: updateData },
             { new: true }
         );
@@ -88,7 +91,8 @@ export const updateSession = async (req, res) => {
 ========================= */
 export const deleteSession = async (req, res) => {
     try {
-        await Session.findOneAndDelete({ sessionId: req.params.id });
+        const session = await Session.findOneAndDelete({ sessionId: req.params.id, userId: req.user.id });
+        if (!session) return res.status(404).json({ error: "Session not found" });
         await Memory.findOneAndDelete({ sessionId: req.params.id });
         res.json({ success: true });
     } catch (err) {

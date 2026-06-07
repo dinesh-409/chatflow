@@ -32,30 +32,3 @@ export function decideResponseMode(query, searchUsed) {
     // For explanations, simple QA, summaries, concepts
     return "clean_summary";
 }
-
-/**
- * Returns strict LLM instructions tailored to the selected response mode.
- * 
- * @param {"clean_summary" | "detailed_with_sources" | "mixed_mode"} mode 
- * @returns {string}
- */
-export function getModePromptInstructions(mode) {
-    const universalRule = "UNIVERSAL RULE: Never inject raw search links or URLs into your main answer text. Sources are handled independently by the system UI. Do not say 'for more details refer to this link'.";
-
-    switch (mode) {
-        case "clean_summary":
-            return `${universalRule}
-MODE: clean_summary. ADAPT YOUR RESPONSE LENGTH. For simple questions, be concise and direct. For complex topics, explain clearly and elaborately using structured paragraphs and bullet points. DO NOT include any links, URLs, or citations in your output.`;
-        
-        case "detailed_with_sources":
-            return `${universalRule}
-MODE: detailed_with_sources. PROVIDE A HIGHLY DETAILED AND CATEGORIZED EXPLANATION. Synthesize multiple data points from the sources into a rich, comprehensive format. Use distinct headings, bold text, and emojis extensively. Do not inject raw links mid-sentence.`;
-        
-        case "mixed_mode":
-            return `${universalRule}
-MODE: mixed_mode. Provide an elaborate, deep, and multi-faceted analysis. Use rich Markdown formatting, distinct headings, emojis, and structured lists. Do not clutter the text with raw URLs.`;
-        
-        default:
-            return universalRule;
-    }
-}

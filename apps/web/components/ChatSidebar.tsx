@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { fetchWithAuth } from "../lib/api";
+import { FiLogOut, FiUser } from "react-icons/fi";
 
 type Props = {
     activeSession: string;
@@ -13,10 +16,11 @@ export default function ChatSidebar({
 }: Props) {
     const [sessions, setSessions] = useState<any[]>([]);
     const [menuOpen, setMenuOpen] = useState<string | null>(null);
+    const { user, logout } = useAuth();
 
     const loadSessions = async () => {
         try {
-            const res = await fetch(
+            const res = await fetchWithAuth(
                 `${process.env.NEXT_PUBLIC_API_URL}/api/sessions`
             );
             const data = await res.json();
@@ -39,7 +43,7 @@ export default function ChatSidebar({
     };
 
     const handleUpdate = async (id: string, data: any) => {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${id}`, {
+        await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data)
@@ -50,7 +54,7 @@ export default function ChatSidebar({
 
     const handleDelete = async (id: string) => {
         if (!confirm("Delete this chat permanently?")) return;
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${id}`, {
+        await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${id}`, {
             method: "DELETE"
         });
         if (activeSession === id) onSelect(crypto.randomUUID());
@@ -146,6 +150,32 @@ export default function ChatSidebar({
             {/* Click away listener overlay */}
             {menuOpen && (
                 <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(null)} />
+            )}
+
+            {/* User Profile Strip */}
+            {user && (
+                <div className="mt-4 pt-4 border-t border-gray-800 flex items-center justify-between">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                        {user.avatar ? (
+                            <img src={user.avatar} alt="Avatar" className="w-8 h-8 rounded-full border border-gray-700" />
+                        ) : (
+                            <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700 text-gray-400">
+                                <FiUser />
+                            </div>
+                        )}
+                        <div className="flex flex-col overflow-hidden">
+                            <span className="text-sm font-medium text-white truncate">{user.name}</span>
+                            <span className="text-xs text-gray-500 truncate">{user.isGuest ? "Guest" : (user.email || "")}</span>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={logout} 
+                        className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                        title="Logout"
+                    >
+                        <FiLogOut />
+                    </button>
+                </div>
             )}
         </div>
     );

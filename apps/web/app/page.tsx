@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import ChatSidebar from "../components/ChatSidebar";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useAuth } from "../context/AuthContext";
+import { api, fetchWithAuth } from "../lib/api";
+import { useRouter } from "next/navigation";
 
 type ChatMessage = {
   role: "user" | "ai";
@@ -11,6 +14,9 @@ type ChatMessage = {
 };
 
 export default function Page() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,6 +35,13 @@ export default function Page() {
   const sessionIdRef = useRef("");
 
   useEffect(() => {
+    if (!authLoading && !user) {
+        router.push("/login");
+    }
+  }, [user, authLoading, router]);
+
+  useEffect(() => {
+    if (!user) return;
     const savedSession =
       sessionStorage.getItem("chatflow_session");
 
@@ -51,7 +64,7 @@ export default function Page() {
   useEffect(() => {
     if (!activeSession) return;
 
-    fetch(
+    fetchWithAuth(
       `${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${activeSession}`
     )
       .then((res) => res.json())
@@ -96,7 +109,7 @@ export default function Page() {
     ]);
 
     try {
-      const res = await fetch(
+      const res = await fetchWithAuth(
         `${process.env.NEXT_PUBLIC_API_URL}/api/chat-stream`,
         {
           method: "POST",
@@ -218,7 +231,10 @@ export default function Page() {
         try {
             const formData = new FormData();
             currentAttachments.forEach(f => formData.append("files", f));
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/upload`, {
+            if (activeSession) {
+                formData.append("sessionId", activeSession);
+            }
+            const res = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/api/upload`, {
                 method: "POST",
                 body: formData
             });
@@ -275,6 +291,10 @@ export default function Page() {
          setAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
      }
   };
+
+  if (authLoading || !user) {
+      return <div className="flex h-screen bg-[#0d0d0d] items-center justify-center text-white">Loading...</div>;
+  }
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-black via-gray-900 to-black text-white">

@@ -32,8 +32,7 @@
 
 import { aiRouterStream }                             from "../services/routerStream.js";
 import { selectModel }                                from "../services/aiRouter.js";
-import { shouldUseWebSearch }                         from "../services/modelRouter.js";
-import { decideResponseMode, getModePromptInstructions } from "../services/responseModeService.js";
+import { buildSystemPrompt }                          from "../services/systemPromptService.js";
 import {
     saveMessage,
     addMessage,
@@ -46,33 +45,13 @@ import { createSession }                              from "../services/sessionS
 import { parseFile, summarizeChunks }                 from "../services/fileService.js";
 import { searchWeb, performWebSearch }                from "../services/searchService.js";
 import { sendSuccess, sendError }                     from "../utils/responseHandler.js";
-
-/* =========================================================
-   SYSTEM PROMPT TEMPLATE
-   Kept here (not in a route) so controller owns the prompt.
-========================================================= */
-const SYSTEM_PROMPT = `You are ChatFlow AI, an Intent-Aware Multi-Model Cognitive AI System.
-IDENTITY: You are powered by Gemini 3.1 Pro, Groq Llama 3.1, and OpenRouter GPT-4o.
-RESPONSE FORMATTING RULES:
-- ADAPTIVE LENGTH: Tailor the depth and length of your response strictly to the user's query.
-- SIMPLE QUERIES: If the user asks a basic question, provide a concise, direct, and appropriately short answer.
-- COMPLEX QUERIES & NEWS: If the user asks for news, trends, summaries, or broad topics, provide an elaborate, deeply comprehensive, and highly detailed response (like ChatGPT or Gemini at their best).
-- FORMATTING: For detailed responses, use rich formatting including bolding, bullet points, emojis, and distinct categorized headings (e.g., 🌍 International, 🇺🇸 Politics, ⚽ Sports).
-- Never be unnecessarily verbose for simple questions, but never be too brief for complex or broad questions.
-
-CRITICAL RULES:
-- SYSTEM CLOCK: Always use the exact date and time provided in the [SYSTEM CLOCK] block when answering time or date queries. Guarantee 100% accuracy.
-- You HAVE ACCESS to real-time data via the "LIVE SEARCH RESULTS" provided in the prompt. NEVER refuse to answer a real-time question by saying you don't have access.
-- When live search results are provided, you MUST rely EXCLUSIVELY on those facts. DO NOT hallucinate or fill in the blanks with outdated pre-trained knowledge.
-- Extract maximum information from search results to provide a highly detailed, expansive response.
-- Never include raw links or URLs inside your answer text.
-- Never say "for more details refer to" or similar phrases.
-- NEVER expose internal model names, API errors, or routing decisions to users.`.trim();
+import FileDocument                                   from "../models/FileDocument.js";
+import { retrieveSemanticChunks }                     from "../services/ragService.js";
 
 /* =========================================================
    HELPERS
 ========================================================= */
-const _userId     = (req) => req.headers["x-user-id"] || "anonymous";
+const _userId     = (req) => req.user?.id || "anonymous";
 const _nameOf     = (mode) => ({
     gemini     : "Gemini 3.1 Pro",
     openrouter : "OpenRouter GPT-4o",
@@ -88,10 +67,9 @@ export const handleBasicChat = async (req, res) => {
 
     // SINGLE routing call — no legacy chooseModel
     const decision = selectModel(message, {}, mode);
-    const responseMode = decideResponseMode(message, decision.needsSearch || shouldUseWebSearch(message));
 
     console.log(
-        `[ROUTER] intent="${decision.intent}" | model="${decision.displayName}" | mode="${responseMode}" | ${decision.reason}`
+        `[ROUTER] intent="${decision.intent}" | model="${decision.displayName}" | isLive="${decision.isLiveQuery}" | ${decision.reason}`
     );
 
     // Consistent response envelope
@@ -133,8 +111,7 @@ export const handleChatStream = async (req, res) => {
            No secondary chooseModel call.
         ─────────────────────────────────────────────────────── */
         const decision    = selectModel(message, {}, mode);
-        const needsSearch = decision.needsSearch || shouldUseWebSearch(message);
-        const responseMode = decideResponseMode(message, needsSearch);
+        const needsSearch = decision.needsSearch;
 
         // Effective stream model: if search needed, gemini synthesises
         const streamMode  = (mode !== "auto")
@@ -142,7 +119,7 @@ export const handleChatStream = async (req, res) => {
             : (decision.model === "search" ? "gemini" : decision.model);
 
         console.log(
-            `[ROUTER] intent="${decision.intent}" | model="${_nameOf(streamMode)}" | mode="${responseMode}" | ${decision.reason}`
+            `[ROUTER] intent="${decision.intent}" | model="${_nameOf(streamMode)}" | isLive="${decision.isLiveQuery}" | ${decision.reason}`
         );
 
         /* ── STEP 2: FILE PROCESSING ──────────────────────────── */
@@ -152,34 +129,54 @@ export const handleChatStream = async (req, res) => {
             const urls = match[1].split(", ");
             for (const url of urls) {
                 if (!url.includes("/uploads/")) continue;
-                const result = await parseFile(url, { chunkSize: 3000 });
-                if (result?.text) {
-                    const content = result.charCount > 10000
-                        ? await summarizeChunks(result.chunks)
-                        : result.text.substring(0, 15000);
-                    fileContext += `\n\n--- FILE: ${result.filename} ---\n${content}\n--- END FILE ---\n`;
+                // Avoid heavy re-parsing. Fetch the already processed document from MongoDB
+                const fileDoc = await FileDocument.findOne({ url, sessionId, userId });
+                if (fileDoc) {
+                    const content = fileDoc.summary || fileDoc.chunks.join("\n\n").substring(0, 10000);
+                    fileContext += `\n<document filename="${fileDoc.filename}">\n${content}\n</document>\n`;
                 }
             }
             modifiedMessage = modifiedMessage.replace(match[0], "[Files Processed]");
         }
-        if (fileContext) modifiedMessage += fileContext;
+        if (fileContext) {
+            modifiedMessage = `<attached_files>\n${fileContext}</attached_files>\n\n` + modifiedMessage;
+        }
+
+        /* ── STEP 2.5: DOCUMENT RETRIEVAL ─────────────────────── */
+        // Search historical files uploaded in this session for context
+        if (!fileContext && !decision.isLiveQuery) {
+             const relevantChunks = await retrieveSemanticChunks(userId, message, 5);
+             if (relevantChunks.length > 0) {
+                 let retrievedContext = "";
+                 for (let i = 0; i < relevantChunks.length; i++) {
+                     const chunk = relevantChunks[i];
+                     retrievedContext += `<retrieved_chunk id="${i+1}" filename="${chunk.filename}">\n${chunk.text}\n</retrieved_chunk>\n\n`;
+                 }
+                 modifiedMessage = `<knowledge_base_context>\nThe user has previously uploaded files containing this relevant information. You MUST cite them using [filename] if you use this information:\n${retrievedContext}</knowledge_base_context>\n\n` + modifiedMessage;
+                 console.log(`[RAG] Injected ${relevantChunks.length} semantic chunks from Pinecone`);
+             }
+        }
 
         /* ── STEP 3: SEARCH INJECTION ─────────────────────────── */
         if (needsSearch) {
             const { results, formatted } = await searchWeb(message);
             if (results.length > 0) {
                 searchSources   = results;   // clean { title, snippet, url, source }[]
-                modifiedMessage += `\n\n${formatted}\n`;
+                // formatted string normally looks like "Source 1...", wrap it in XML
+                modifiedMessage = `<live_search_results>\n${formatted}\n</live_search_results>\n\n` + modifiedMessage;
                 console.log(`[SEARCH] ${results.length} clean results injected`);
             } else {
-                modifiedMessage +=
-                    `\n\n[SYSTEM: Live search returned no results. If current data is needed, ` +
-                    `say: "Real-time data is currently unavailable for this query."]`;
+                if (decision.isLiveQuery) {
+                    // Search Validation Failure for Live Queries
+                    modifiedMessage = `<search_validation>\nSearch failed. DO NOT GUESS. State explicitly that real-time information is unavailable.\n</search_validation>\n\n` + modifiedMessage;
+                } else {
+                    modifiedMessage = `<live_search_results>\nLive search returned no results.\n</live_search_results>\n\n` + modifiedMessage;
+                }
             }
         }
 
         /* ── STEP 4: SESSION MANAGEMENT ───────────────────────── */
-        const session = await createSession(sessionId);
+        const session = await createSession(sessionId, userId);
         if (session?.title === "New Chat") {
             (async () => {
                 try {
@@ -197,22 +194,32 @@ export const handleChatStream = async (req, res) => {
         }
 
         /* ── STEP 5: MEMORY INJECTION ─────────────────────────── */
-        const { contextSummary } = await injectMemoryToPrompt(
-            "", sessionId, message, userId
-        );
+        let contextSummary = "";
+        // Prevent memory injection if this is a live factual query to strictly ground the model
+        if (!decision.isLiveQuery) {
+            const memoryResult = await injectMemoryToPrompt("", sessionId, message, userId);
+            contextSummary = memoryResult.contextSummary;
+        } else {
+            console.log(`[MEMORY] Bypassed injection due to isLiveQuery Anti-Hallucination rules`);
+        }
 
         /* ── STEP 7: ASSEMBLE PROMPT ──────────────────────────── */
-        const modeInstructions = getModePromptInstructions(responseMode);
-        const systemClock = `[SYSTEM CLOCK: Current Real-Time Date and Time is ${new Date().toString()}]`;
+        const systemPrompt = buildSystemPrompt({ 
+            intent: decision.intent, 
+            responseType: decision.responseType,
+            complexity: decision.complexity, 
+            isLiveQuery: decision.isLiveQuery,
+            isFollowUp: decision.isFollowUp 
+        });
         
-        const finalPrompt = `${SYSTEM_PROMPT}\n\n${systemClock}\n\n${modeInstructions}\n\n${contextSummary}[CURRENT MESSAGE]\nUser: ${modifiedMessage}`;
+        const finalPrompt = `${systemPrompt}\n\n${contextSummary}\n\n<current_message>\nUser: ${modifiedMessage}\n</current_message>`;
 
         // (Metadata is no longer sent via SSE stream to prevent leakage.
         // It is saved to the DB below and can be fetched via standard JSON API)
 
         /* ── STEP 8: STREAM AI RESPONSE ───────────────────────── */
-        // FIX: pass streamMode (the actual model id), NOT "auto"
-        const stream = await aiRouterStream({ message: finalPrompt, mode: streamMode });
+        // FIX: pass streamMode (the actual model id) and complexity
+        const stream = await aiRouterStream({ message: finalPrompt, mode: streamMode, complexity: decision.complexity });
 
         let fullResponse = "";
         let aborted      = false;
