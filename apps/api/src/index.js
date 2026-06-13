@@ -14,7 +14,7 @@ dotenv.config();
 /* =====================
    SETUP VALIDATION
 ===================== */
-const requiredEnvVars = ["PORT", "JWT_SECRET", "MONGODB_URI", "GEMINI_API_KEY"];
+const requiredEnvVars = ["PORT", "JWT_SECRET", "MONGO_URI", "GEMINI_API_KEY"];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
