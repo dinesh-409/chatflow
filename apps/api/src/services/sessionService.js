@@ -1,15 +1,59 @@
 import Session from "../models/Session.js";
 
-export const createSession = async (sessionId, userId) => {
-    const exists = await Session.findOneAndUpdate(
-        { sessionId, userId },
-        { $setOnInsert: { sessionId, userId, title: "New Chat" } },
-        { new: true, upsert: true }
-    );
+/* =========================
+   CREATE SESSION
+========================= */
+export const createSession = async (
+    sessionId,
+    userId
+) => {
+    if (!sessionId || !userId) {
+        throw new Error(
+            "sessionId and userId are required"
+        );
+    }
 
-    return exists;
+    const session =
+        await Session.findOneAndUpdate(
+            {
+                sessionId,
+                userId,
+            },
+            {
+                $setOnInsert: {
+                    sessionId,
+                    userId,
+                    title: "New Chat",
+                    isPinned: false,
+                    isArchived: false,
+                },
+            },
+            {
+                new: true,
+                upsert: true,
+            }
+        );
+
+    return session;
 };
 
-export const getAllSessions = async () => {
-    return await Session.find().sort({ createdAt: -1 });
-};
+/* =========================
+   GET USER SESSIONS
+========================= */
+export const getAllSessions =
+    async (userId) => {
+        if (!userId) {
+            return [];
+        }
+
+        return await Session.find({
+            userId,
+            isArchived: false,
+        })
+            .sort({
+                isPinned: -1,
+                updatedAt: -1,
+                createdAt: -1,
+            })
+            .lean();
+    };

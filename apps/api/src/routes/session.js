@@ -1,17 +1,39 @@
 import express from "express";
+
 import {
     getAllSessions,
     getSession,
     updateSession,
-    deleteSession
+    deleteSession,
 } from "../controllers/sessionController.js";
-import { protect } from "../middleware/authMiddleware.js";
 
-const router = express.Router();
+import {
+    protect,
+} from "../middleware/authMiddleware.js";
 
-router.get("/sessions", protect, getAllSessions);
-router.get("/sessions/:id", protect, getSession);
-router.put("/sessions/:id", protect, updateSession);
-router.delete("/sessions/:id", protect, deleteSession);
+const router =
+    express.Router();
+
+router.use(protect);
+
+router.get(
+    "/sessions",
+    getAllSessions
+);
+
+router.get(
+    "/sessions/:id",
+    getSession
+);
+
+router.put(
+    "/sessions/:id",
+    updateSession
+);
+
+router.delete(
+    "/sessions/:id",
+    deleteSession
+);
 
 export default router;
