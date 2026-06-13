@@ -10,7 +10,7 @@
  */
 
 import axios from "axios";
-import { geminiBaseUrl, GROQ_MODEL, OPENROUTER_MODEL } from "../config/modelConfig.js";
+import { geminiBaseUrl, GEMINI_MODEL, GROQ_MODEL, OPENROUTER_MODEL } from "../config/modelConfig.js";
 
 /* =========================================================
    MODEL CALLERS
@@ -67,8 +67,8 @@ async function callGemini(message) {
                     }
                 ],
                 safetySettings: [
-                    { category: "HARM_CATEGORY_HARASSMENT",       threshold: "BLOCK_ONLY_HIGH" },
-                    { category: "HARM_CATEGORY_HATE_SPEECH",      threshold: "BLOCK_ONLY_HIGH" },
+                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
+                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
                     { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
                     { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
                 ]
@@ -145,9 +145,9 @@ async function callOpenRouter(message) {
 ========================================================= */
 
 const FALLBACK_MAP = {
-    gemini:     "openrouter",
+    gemini: "openrouter",
     openrouter: "groq",
-    groq:       "openrouter",
+    groq: "openrouter",
 };
 
 async function callModel(model, message) {
