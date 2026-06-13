@@ -14,11 +14,12 @@ dotenv.config();
 /* =====================
    SETUP VALIDATION
 ===================== */
-const requiredEnvVars = ["PORT"];
+const requiredEnvVars = ["PORT", "JWT_SECRET", "MONGODB_URI", "GEMINI_API_KEY"];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
-    console.warn(`⚠️ Warning: Missing recommended environment variables: ${missingEnvVars.join(', ')}`);
+    console.error(`❌ FATAL: Missing required environment variables: ${missingEnvVars.join(', ')}`);
+    process.exit(1);
 }
 
 const app = express();
@@ -57,14 +58,14 @@ app.use(
    BODY PARSER
 ===================== */
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 /* =====================
    DATABASE & VECTOR DB
 ===================== */
 
 connectDB();
-import { initPinecone } from "./config/pinecone.js";
+import { initPinecone, getPineconeIndex } from "./config/pinecone.js";
 initPinecone();
 
 /* =====================
@@ -84,6 +85,35 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.get("/", (req, res) => {
    res.status(200).send("🔥 ChatFlow Backend Running");
+});
+
+import mongoose from "mongoose";
+
+app.get("/health", async (req, res) => {
+   const health = {
+      status: "ok",
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      services: {
+         mongodb: "unknown",
+         pinecone: "unknown",
+      }
+   };
+
+   // Check MongoDB
+   try {
+      health.services.mongodb = mongoose.connection.readyState === 1 ? "connected" : "disconnected";
+   } catch { health.services.mongodb = "error"; }
+
+   // Check Pinecone
+   try {
+      health.services.pinecone = getPineconeIndex() ? "connected" : "not_initialized";
+   } catch { health.services.pinecone = "error"; }
+
+   const allHealthy = Object.values(health.services).every(s => s === "connected");
+   health.status = allHealthy ? "healthy" : "degraded";
+
+   res.status(allHealthy ? 200 : 503).json(health);
 });
 
 /* =====================

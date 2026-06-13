@@ -219,6 +219,9 @@ export const handleChatStream = async (req, res) => {
         // It is saved to the DB below and can be fetched via standard JSON API)
 
         /* ── STEP 8: STREAM AI RESPONSE ───────────────────────── */
+        // Send model metadata FIRST so frontend can display badge immediately
+        res.write(`data: ${JSON.stringify({ type: "meta", model: _nameOf(streamMode) })}\n\n`);
+
         // FIX: pass streamMode (the actual model id) and complexity
         const stream = await aiRouterStream({ message: finalPrompt, mode: streamMode, complexity: decision.complexity });
 
@@ -235,12 +238,6 @@ export const handleChatStream = async (req, res) => {
 
         /* ── STEP 9: DONE EVENT ───────────────────────────────── */
         if (!aborted) {
-            // Append model used to the text explicitly per user request
-            const modelBadge = `\n\n**Model Used:** ${_nameOf(streamMode)}`;
-            fullResponse += modelBadge;
-            res.write(`data: ${JSON.stringify({ type: "token", text: modelBadge })}\n\n`);
-            
-            // Only send standard [DONE] to close stream, omitting {type: "done"} object to prevent UI text leakage
             res.write("data: [DONE]\n\n");
         }
 
