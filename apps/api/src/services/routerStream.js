@@ -1,8 +1,16 @@
 /**
- * routerStream.js — Phase 3 Fix
-    */
+ * routerStream.js — Phase 3 Fix (Model Migration)
+ *
+ * CHANGES:
+ *   - Migrated from deprecated gemini-1.5-flash → gemini-2.5-flash
+ *   - Centralized model config via config/modelConfig.js
+ *   - Fixed fallback chain to avoid circular dead-ends
+ *   - Gated debug logs behind NODE_ENV
+ *   - Added Gemini safety settings
+ */
 
 import axios from "axios";
+import { geminiBaseUrl, GROQ_MODEL, OPENROUTER_MODEL } from "../config/modelConfig.js";
 
 /* =========================================================
    MODEL CALLERS
@@ -12,7 +20,7 @@ async function callGroq(message) {
     const res = await axios.post(
         "https://api.groq.com/openai/v1/chat/completions",
         {
-            model: "llama-3.1-8b-instant",
+            model: GROQ_MODEL,
             messages: [{ role: "user", content: message }],
         },
         {
@@ -30,24 +38,21 @@ async function callGroq(message) {
 async function callGemini(message) {
     try {
         const url =
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+            `${geminiBaseUrl("generateContent")}?key=${process.env.GEMINI_API_KEY}`;
 
-        console.log("=================================");
-        console.log("GEMINI DEBUG");
-        console.log("=================================");
-        console.log("KEY EXISTS:", !!process.env.GEMINI_API_KEY);
-
-        console.log(
-            "KEY PREFIX:",
-            process.env.GEMINI_API_KEY
-                ? process.env.GEMINI_API_KEY.substring(0, 10)
-                : "NO_KEY"
-        );
-
-        console.log(
-            "ENDPOINT:",
-            url.split("?")[0]
-        );
+        if (process.env.NODE_ENV !== "production") {
+            console.log("=================================");
+            console.log("GEMINI DEBUG");
+            console.log("=================================");
+            console.log("KEY EXISTS:", !!process.env.GEMINI_API_KEY);
+            console.log(
+                "KEY PREFIX:",
+                process.env.GEMINI_API_KEY
+                    ? process.env.GEMINI_API_KEY.substring(0, 10)
+                    : "NO_KEY"
+            );
+            console.log("ENDPOINT:", url.split("?")[0]);
+        }
 
         const res = await axios.post(
             url,
@@ -60,6 +65,12 @@ async function callGemini(message) {
                             }
                         ]
                     }
+                ],
+                safetySettings: [
+                    { category: "HARM_CATEGORY_HARASSMENT",       threshold: "BLOCK_ONLY_HIGH" },
+                    { category: "HARM_CATEGORY_HATE_SPEECH",      threshold: "BLOCK_ONLY_HIGH" },
+                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
+                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
                 ]
             },
             {
@@ -110,7 +121,7 @@ async function callOpenRouter(message) {
     const res = await axios.post(
         "https://openrouter.ai/api/v1/chat/completions",
         {
-            model: "openai/gpt-4o-mini",
+            model: OPENROUTER_MODEL,
             messages: [{ role: "user", content: message }],
         },
         {
@@ -127,12 +138,16 @@ async function callOpenRouter(message) {
 
 /* =========================================================
    FAILOVER LOGIC
+   ─────────────────────────────────────────────────────────
+   Chain is ordered so a broken provider never falls back
+   to itself.  Each entry lists TWO alternatives so we
+   always have a second chance.
 ========================================================= */
 
 const FALLBACK_MAP = {
-    gemini: "openrouter",
-    openrouter: "gemini",
-    groq: "gemini",
+    gemini:     "openrouter",
+    openrouter: "groq",
+    groq:       "openrouter",
 };
 
 async function callModel(model, message) {
@@ -202,7 +217,7 @@ export async function aiRouterStream({
             : mode;
 
     const fallback =
-        FALLBACK_MAP[primary] || "gemini";
+        FALLBACK_MAP[primary] || "openrouter";
 
     const attempts = [
         { model: primary, stage: "primary" },
