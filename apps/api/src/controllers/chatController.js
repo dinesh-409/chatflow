@@ -45,6 +45,7 @@ import { createSession }                              from "../services/sessionS
 import { parseFile, summarizeChunks }                 from "../services/fileService.js";
 import { searchWeb, performWebSearch }                from "../services/searchService.js";
 import { sendSuccess, sendError }                     from "../utils/responseHandler.js";
+import { GEMINI_DISPLAY_NAME }                        from "../config/modelConfig.js";
 import FileDocument                                   from "../models/FileDocument.js";
 import { retrieveSemanticChunks }                     from "../services/ragService.js";
 
@@ -53,10 +54,10 @@ import { retrieveSemanticChunks }                     from "../services/ragServi
 ========================================================= */
 const _userId     = (req) => req.user?.id || "anonymous";
 const _nameOf     = (mode) => ({
-    gemini     : "Gemini 3.1 Pro",
+    gemini     : GEMINI_DISPLAY_NAME,
     openrouter : "OpenRouter GPT-4o",
     groq       : "Groq Llama 3.1",
-}[mode] || "Gemini 3.1 Pro");
+}[mode] || GEMINI_DISPLAY_NAME);
 
 /* =========================================================
    POST /api/chat — Sync JSON (routing metadata + stub)

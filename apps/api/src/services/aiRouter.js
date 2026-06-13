@@ -7,6 +7,7 @@
  */
 
 import { detectIntent } from "./intentDetector.js";
+import { GEMINI_DISPLAY_NAME } from "../config/modelConfig.js";
 
 /* =========================================================
    MODEL REGISTRY
@@ -14,7 +15,7 @@ import { detectIntent } from "./intentDetector.js";
 export const MODEL_REGISTRY = {
     "gemini": {
         id: "gemini",
-        displayName: "Gemini 3.1 Pro",
+        displayName: GEMINI_DISPLAY_NAME,
         strengths: ["casual", "explain", "summarize", "factual", "multilingual", "news synthesis"],
     },
     "groq": {

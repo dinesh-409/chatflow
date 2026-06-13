@@ -1,10 +1,11 @@
 import axios from "axios";
+import { geminiBaseUrl } from "../config/modelConfig.js";
 
 export async function askGemini(prompt) {
     const key = process.env.GEMINI_API_KEY;
 
     const res = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${key}`,
+        `${geminiBaseUrl("generateContent")}?key=${key}`,
         {
             contents: [{ parts: [{ text: prompt }] }],
         }

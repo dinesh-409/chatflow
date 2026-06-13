@@ -21,6 +21,7 @@ import fs   from "fs";
 import path from "path";
 import { createRequire } from "module";
 import axios from "axios";
+import { geminiBaseUrl } from "../config/modelConfig.js";
 
 const require = createRequire(import.meta.url);
 const pdfParse      = require("pdf-parse");
@@ -332,7 +333,7 @@ async function _callAI(prompt, model = "groq") {
 
     // gemini fallback
     const res = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        `${geminiBaseUrl("generateContent")}?key=${process.env.GEMINI_API_KEY}`,
         { contents: [{ parts: [{ text: prompt }] }] },
         { timeout: 15000 }
     );
